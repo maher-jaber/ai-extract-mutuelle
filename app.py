@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import json
 from datetime import datetime
-from extractor import MutuelleExtractorFR
+from extractor import MutuelleExtractor as MutuelleExtractorFR
 import logging
 
 # Configuration du logging

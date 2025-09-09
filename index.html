@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extracteur d'Attestations Mutuelle</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .upload-container {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+        .file-input {
+            display: block;
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: 2px dashed #3498db;
+            border-radius: 5px;
+            background-color: #f8fafc;
+            cursor: pointer;
+            text-align: center;
+        }
+        .btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            display: block;
+            width: 100%;
+            margin-top: 15px;
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            background-color: #2980b9;
+        }
+        .btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .result-container {
+            display: none;
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+        .error {
+            color: #e74c3c;
+            padding: 10px;
+            background-color: #fadbd8;
+            border-radius: 5px;
+            margin-top: 15px;
+            display: none;
+        }
+        .success {
+            color: #27ae60;
+            padding: 10px;
+            background-color: #d5f4e6;
+            border-radius: 5px;
+            margin-top: 15px;
+            display: none;
+        }
+        .loading {
+            text-align: center;
+            display: none;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .result-section {
+            margin-bottom: 20px;
+        }
+        .result-section h3 {
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            color: #2c3e50;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 10px;
+        }
+        .info-label {
+            font-weight: bold;
+            color: #7f8c8d;
+        }
+        .coverage-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        .coverage-card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            background-color: #f9f9f9;
+        }
+        .coverage-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        .note {
+            font-style: italic;
+            color: #e67e22;
+            margin-top: 8px;
+            font-size: 0.9em;
+        }
+        .contact-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .contact-section {
+                grid-template-columns: 1fr;
+            }
+            .info-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Extracteur d'Attestations Mutuelle</h1>
+    
+    <div class="upload-container">
+        <h2>Téléverser une attestation</h2>
+        <p>Sélectionnez un fichier PDF d'attestation de mutuelle pour en extraire les informations.</p>
+        
+        <input type="file" id="fileInput" class="file-input" accept=".pdf">
+        
+        <button id="uploadBtn" class="btn">Extraire les informations</button>
+        
+        <div id="errorMsg" class="error"></div>
+        <div id="successMsg" class="success"></div>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Extraction en cours...</p>
+        </div>
+    </div>
+    
+    <div id="resultContainer" class="result-container">
+        <h2>Résultats de l'extraction</h2>
+        
+        <div class="result-section">
+            <h3>Informations de l'assuré</h3>
+            <div id="assureInfo" class="info-grid"></div>
+        </div>
+        
+        <div class="result-section">
+            <h3>Tiers payant</h3>
+            <div id="tiersPayantInfo" class="info-grid"></div>
+        </div>
+        
+        <div class="result-section">
+            <h3>Couvertures</h3>
+            <div id="couverturesInfo" class="coverage-grid"></div>
+        </div>
+        
+        <div class="result-section">
+            <h3>Notes</h3>
+            <ul id="notesInfo"></ul>
+        </div>
+        
+        <div class="result-section">
+            <h3>Codification</h3>
+            <div id="codificationInfo" class="info-grid"></div>
+        </div>
+        
+        <div class="result-section">
+            <h3>Contacts</h3>
+            <div id="contactsInfo" class="contact-section"></div>
+        </div>
+        
+        <div class="result-section">
+            <h3>Avertissements</h3>
+            <ul id="avertissementsInfo"></ul>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('fileInput');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const errorMsg = document.getElementById('errorMsg');
+            const successMsg = document.getElementById('successMsg');
+            const loading = document.getElementById('loading');
+            const resultContainer = document.getElementById('resultContainer');
+            
+            uploadBtn.addEventListener('click', async function() {
+                // Reset messages
+                errorMsg.style.display = 'none';
+                successMsg.style.display = 'none';
+                
+                // Validate file input
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    showError('Veuillez sélectionner un fichier PDF');
+                    return;
+                }
+                
+                const file = fileInput.files[0];
+                
+                // Validate file type
+                if (file.type !== 'application/pdf') {
+                    showError('Le fichier doit être au format PDF');
+                    return;
+                }
+                
+                // Show loading
+                loading.style.display = 'block';
+                uploadBtn.disabled = true;
+                
+                try {
+                    // Create form data
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    // Send request to API
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || `Erreur ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // Display results
+                    displayResults(data);
+                    
+                    // Show success message
+                    showSuccess('Extraction terminée avec succès');
+                    
+                } catch (error) {
+                    showError(`Erreur lors de l'extraction: ${error.message}`);
+                } finally {
+                    // Hide loading
+                    loading.style.display = 'none';
+                    uploadBtn.disabled = false;
+                }
+            });
+            
+            function showError(message) {
+                errorMsg.textContent = message;
+                errorMsg.style.display = 'block';
+            }
+            
+            function showSuccess(message) {
+                successMsg.textContent = message;
+                successMsg.style.display = 'block';
+            }
+            
+            function displayResults(data) {
+                // Show result container
+                resultContainer.style.display = 'block';
+                
+                // Display assure information
+                displayAssureInfo(data.assure || {});
+                
+                // Display tiers payant information
+                displayTiersPayantInfo(data.tiers_payant || {});
+                
+                // Display couvertures
+                displayCouvertures(data.couvertures || {});
+                
+                // Display notes
+                displayNotes(data.notes || []);
+                
+                // Display codification
+                displayCodification(data.codification || {});
+                
+                // Display contacts
+                displayContacts(data.contacts || {});
+                
+                // Display avertissements
+                displayAvertissements(data.avertissements || []);
+            }
+            
+            function displayAssureInfo(assureInfo) {
+                const container = document.getElementById('assureInfo');
+                container.innerHTML = '';
+                
+                if (Object.keys(assureInfo).length === 0) {
+                    container.innerHTML = '<p>Aucune information trouvée</p>';
+                    return;
+                }
+                
+                for (const [key, value] of Object.entries(assureInfo)) {
+                    if (typeof value === 'object') {
+                        for (const [subKey, subValue] of Object.entries(value)) {
+                            addInfoRow(container, formatKey(subKey), subValue);
+                        }
+                    } else {
+                        addInfoRow(container, formatKey(key), value);
+                    }
+                }
+            }
+            
+            function displayTiersPayantInfo(tiersPayantInfo) {
+                const container = document.getElementById('tiersPayantInfo');
+                container.innerHTML = '';
+                
+                if (Object.keys(tiersPayantInfo).length === 0) {
+                    container.innerHTML = '<p>Aucune information trouvée</p>';
+                    return;
+                }
+                
+                for (const [key, value] of Object.entries(tiersPayantInfo)) {
+                    addInfoRow(container, formatKey(key), value);
+                }
+            }
+            
+            function displayCouvertures(couvertures) {
+                const container = document.getElementById('couverturesInfo');
+                container.innerHTML = '';
+                
+                if (Object.keys(couvertures).length === 0) {
+                    container.innerHTML = '<p>Aucune couverture trouvée</p>';
+                    return;
+                }
+                
+                for (const [domain, info] of Object.entries(couvertures)) {
+                    const card = document.createElement('div');
+                    card.className = 'coverage-card';
+                    
+                    let html = `<div class="coverage-title">${info.description || domain}</div>`;
+                    html += `<div><strong>Code:</strong> ${info.code || 'N/A'}</div>`;
+                    html += `<div><strong>Taux:</strong> ${info.taux || 'N/A'}</div>`;
+                    
+                    if (info.note) {
+                        html += `<div class="note">${info.note}</div>`;
+                    }
+                    
+                    card.innerHTML = html;
+                    container.appendChild(card);
+                }
+            }
+            
+            function displayNotes(notes) {
+                const container = document.getElementById('notesInfo');
+                container.innerHTML = '';
+                
+                if (notes.length === 0) {
+                    container.innerHTML = '<p>Aucune note trouvée</p>';
+                    return;
+                }
+                
+                notes.forEach(note => {
+                    const li = document.createElement('li');
+                    li.textContent = note;
+                    container.appendChild(li);
+                });
+            }
+            
+            function displayCodification(codification) {
+                const container = document.getElementById('codificationInfo');
+                container.innerHTML = '';
+                
+                if (Object.keys(codification).length === 0) {
+                    container.innerHTML = '<p>Aucune information de codification trouvée</p>';
+                    return;
+                }
+                
+                for (const [code, meaning] of Object.entries(codification)) {
+                    addInfoRow(container, code, meaning);
+                }
+            }
+            
+            function displayContacts(contacts) {
+                const container = document.getElementById('contactsInfo');
+                container.innerHTML = '';
+                
+                if (Object.keys(contacts).length === 0) {
+                    container.innerHTML = '<p>Aucune information de contact trouvée</p>';
+                    return;
+                }
+                
+                // Display contacts for professionals
+                if (contacts.professionnels_sante && Object.keys(contacts.professionnels_sante).length > 0) {
+                    const proSection = document.createElement('div');
+                    proSection.innerHTML = '<h4>Professionnels de santé</h4>';
+                    
+                    const proList = document.createElement('div');
+                    proList.className = 'info-grid';
+                    
+                    for (const [key, value] of Object.entries(contacts.professionnels_sante)) {
+                        addInfoRow(proList, formatKey(key), value);
+                    }
+                    
+                    proSection.appendChild(proList);
+                    container.appendChild(proSection);
+                }
+                
+                // Display contacts for insured
+                if (contacts.assures && Object.keys(contacts.assures).length > 0) {
+                    const assureSection = document.createElement('div');
+                    assureSection.innerHTML = '<h4>Assurés</h4>';
+                    
+                    const assureList = document.createElement('div');
+                    assureList.className = 'info-grid';
+                    
+                    for (const [key, value] of Object.entries(contacts.assures)) {
+                        addInfoRow(assureList, formatKey(key), value);
+                    }
+                    
+                    assureSection.appendChild(assureList);
+                    container.appendChild(assureSection);
+                }
+            }
+            
+            function displayAvertissements(avertissements) {
+                const container = document.getElementById('avertissementsInfo');
+                container.innerHTML = '';
+                
+                if (avertissements.length === 0) {
+                    container.innerHTML = '<p>Aucun avertissement trouvé</p>';
+                    return;
+                }
+                
+                avertissements.forEach(avertissement => {
+                    const li = document.createElement('li');
+                    li.textContent = avertissement;
+                    container.appendChild(li);
+                });
+            }
+            
+            function addInfoRow(container, label, value) {
+                const labelDiv = document.createElement('div');
+                labelDiv.className = 'info-label';
+                labelDiv.textContent = label;
+                
+                const valueDiv = document.createElement('div');
+                valueDiv.textContent = value || 'N/A';
+                
+                container.appendChild(labelDiv);
+                container.appendChild(valueDiv);
+            }
+            
+            function formatKey(key) {
+                return key.split('_')
+                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                    .join(' ')
+                    .replace(/\bAmc\b/i, 'AMC')
+                    .replace(/\bInsee\b/i, 'INSEE');
+            }
+        });
+    </script>
+</body>
+</html>

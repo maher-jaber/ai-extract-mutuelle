@@ -1,0 +1,47 @@
+{
+  "success": true,
+  "source": {
+    "method": "ocr_tesseract",
+    "pages": 2,
+    "text_length": 2577
+  },
+  "general": {
+    "mutuelle": "SP SP OC",
+    "contrat": {
+      "numero": "0000000000177056"
+    },
+    "identifiants": {
+      "numero_adherent": "20222441"
+    },
+    "gestionnaire_tiers_payant": "iSanté"
+  },
+  "adherents": [],
+  "beneficiaires": [
+    {
+      "role": "benef",
+      "nom": " MERLY MARIE",
+      "prenom": "CLAU",
+      "date_naissance": null,
+      "num_assure": null,
+      "ligne_source": "AMC : MERLY MARIE CLAU"
+    },
+    {
+      "role": "benef",
+      "nom": "POS ATTESTATION DE TIERS",
+      "prenom": "PAYANT",
+      "date_naissance": null,
+      "num_assure": null,
+      "ligne_source": "POS ATTESTATION DE TIERS PAYANT"
+    }
+  ],
+  "domaines_tiers_payant": [],
+  "diagnostics": {
+    "score_estime": 0.48,
+    "qr_hint_detected": false,
+    "champs_trouves": 4
+  },
+  "metadata": {
+    "fichier": "uploads\\20250909_123041_MUTUELLE 2025-6.pdf",
+    "timestamp": "2025-09-09T12:30:43.414497"
+  }
+}

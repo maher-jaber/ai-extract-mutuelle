@@ -292,75 +292,125 @@ class MutuelleExtractorFR:
         return general
 
     def _parse_people(self, text: str) -> Dict[str, List[Dict[str, Any]]]:
-        """Parsing amélioré des personnes - évite les en-têtes de tableau"""
+        """Parsing amélioré des personnes - extraction depuis les tableaux structurés"""
         data = {"adherents": [], "beneficiaires": []}
+        processed_people = set()
         
-        # Liste des patterns d'en-têtes de tableau à exclure
-        table_headers = [
-            "PHAR", "MED", "LABO", "RAD", "AUXM", "SAGE", "HOSP", "OPTI", "DENT", 
-            "SODI", "PROD", "DEPR", "DESO", "AUDI", "TRAN", "CURE", "SVIL", "RLAX",
-            "EXTE", "CSTE", "DIV", "INF", "KIN", "CHAM", "DEOR"
-        ]
+        # Vérifier si le texte contient des sections de bénéficiaires
+        has_benef_section = re.search(r"Bénéficiaire\(s\) du tiers payant", text, re.I)
+        has_assure_principal = re.search(r"Assuré principal", text, re.I)
         
-        # Recherche des sections de bénéficiaires
-        benef_section_patterns = [
-            r"Bénéficiaire[s]? du tiers payant(.+?)(?=Dépenses de santé|Assuré principal|$)",
-            r"Nom\s*[-\s]*Prénom(.+?)(?=\n\n|\n[A-Z]|$)",
-            r"Assuré principal(.+?)(?=\n\n|\n[A-Z]|$)"
-        ]
+        if not has_benef_section and not has_assure_principal:
+            # Aucune section de bénéficiaire trouvée, retourner des listes vides
+            return data
         
-        for pattern in benef_section_patterns:
-            sections = re.findall(pattern, text, re.I | re.DOTALL)
-            for section in sections:
-                lines = section.split('\n')
-                for line in lines:
-                    line = line.strip()
-                    if not line:
-                        continue
+        # 1. Extraction depuis les sections "Bénéficiaire(s) du tiers payant"
+        benef_sections = re.findall(r"Bénéficiaire\(s\) du tiers payant(.+?)(?=Dépenses de santé|Assuré principal|$)", text, re.I | re.DOTALL)
+        
+        for section in benef_sections:
+            lines = section.split('\n')
+            current_person = {}
+            
+            for i, line in enumerate(lines):
+                line = line.strip()
+                if not line:
+                    continue
+                
+                # Ignorer les lignes d'en-tête
+                if any(keyword in line for keyword in ["Nom", "Prénom", "Date naiss", "Rang", "N° INSEE"]):
+                    continue
+                
+                # Recherche de nom et prénom (lignes avec texte en majuscules)
+                name_match = re.search(r"^([A-ZÉÈÀÂÎÏÔÖÛÜÇ'\s\-]{3,})$", line)
+                if name_match:
+                    full_name = name_match.group(1).strip()
+                    # Séparer nom et prénom (supposer que le premier mot est le nom)
+                    name_parts = full_name.split()
+                    if len(name_parts) >= 2:
+                        nom = name_parts[0]
+                        prenom = " ".join(name_parts[1:])
+                        current_person = {"nom": nom, "prenom": prenom}
+                    continue
+                
+                # Recherche de date de naissance (format JJ/MM/AAAA)
+                date_match = re.search(r"^(\d{2}/\d{2}/\d{4})$", line)
+                if date_match and current_person:
+                    date_naissance = date_match.group(1)
                     
-                    # Éviter les en-têtes de tableau
-                    if any(header in line.upper() for header in table_headers):
-                        continue
-                    
-                    # Éviter les lignes avec uniquement des codes de domaine
-                    if re.search(rf"\b({'|'.join(table_headers)})\b", line, re.I):
-                        continue
-                    
-                    # Recherche nom, prénom, date de naissance
-                    name_match = re.search(r"([A-ZÉÈÀÂÎÏÔÖÛÜÇ' -]{2,})[,\s]+([A-ZÉÈÀÂÎÏÔÖÛÜÇ' -]{2,})", line)
-                    date_match = RE_DATE.search(line)
-                    
-                    if name_match or date_match:
-                        nom = name_match.group(1) if name_match else None
-                        prenom = name_match.group(2) if name_match else None
-                        date_naissance = date_match.group(1) if date_match else None
+                    person_id = f"{current_person['nom']}_{current_person['prenom']}_{date_naissance}"
+                    if person_id not in processed_people:
+                        processed_people.add(person_id)
                         
-                        # Vérifier que ce n'est pas un code de domaine
-                        if nom and any(header in nom.upper() for header in table_headers):
-                            continue
-                        if prenom and any(header in prenom.upper() for header in table_headers):
-                            continue
-                        
-                        # Détermination du rôle
-                        role = "benef"
-                        if re.search(r"assuré principal", line, re.I):
-                            role = "adh"
-                        
-                        person = {
-                            "role": role,
-                            "nom": nom,
-                            "prenom": prenom,
+                        # Par défaut, considérer comme bénéficiaire
+                        person_data = {
+                            "role": "benef",
+                            "nom": current_person["nom"],
+                            "prenom": current_person["prenom"],
                             "date_naissance": date_naissance,
                             "num_assure": None
                         }
+                        data["beneficiaires"].append(person_data)
+                    
+                    current_person = {}
+        
+        # 2. Extraction de l'assuré principal
+        assured_patterns = [
+            r"Assuré principal AMC\s*[:]?\s*([A-ZÉÈÀÂÎÏÔÖÛÜÇ'\s\-]+)",
+            r"Assuré principal\s*[:]?\s*([A-ZÉÈÀÂÎÏÔÖÛÜÇ'\s\-]+)"
+        ]
+        
+        for pattern in assured_patterns:
+            matches = re.finditer(pattern, text, re.I)
+            for match in matches:
+                full_name = match.group(1).strip()
+                name_parts = full_name.split()
+                if len(name_parts) >= 2:
+                    nom = name_parts[0]
+                    prenom = " ".join(name_parts[1:])
+                    
+                    # Chercher la date de naissance dans les lignes suivantes
+                    lines_after = text[match.end():].split('\n')
+                    date_naissance = None
+                    for line in lines_after[:5]:  # Chercher dans les 5 lignes suivantes
+                        date_match = re.search(r"(\d{2}/\d{2}/\d{4})", line)
+                        if date_match:
+                            date_naissance = date_match.group(1)
+                            break
+                    
+                    person_id = f"{nom}_{prenom}_{date_naissance}"
+                    if person_id not in processed_people:
+                        processed_people.add(person_id)
                         
-                        if role == "adh":
-                            data["adherents"].append(person)
+                        # Vérifier si cette personne est déjà dans les bénéficiaires
+                        existing_benef = None
+                        for benef in data["beneficiaires"]:
+                            if benef["nom"] == nom and benef["prenom"] == prenom:
+                                existing_benef = benef
+                                break
+                        
+                        if existing_benef:
+                            # Déplacer de bénéficiaires à adhérents
+                            data["beneficiaires"].remove(existing_benef)
+                            existing_benef["role"] = "adh"
+                            data["adherents"].append(existing_benef)
                         else:
-                            data["beneficiaires"].append(person)
+                            data["adherents"].append({
+                                "role": "adh",
+                                "nom": nom,
+                                "prenom": prenom,
+                                "date_naissance": date_naissance,
+                                "num_assure": None
+                            })
+        
+        # 3. Si aucun adhérent trouvé mais des bénéficiaires existent, le premier devient adhérent
+        if not data["adherents"] and data["beneficiaires"]:
+            first_benef = data["beneficiaires"][0]
+            first_benef["role"] = "adh"
+            data["adherents"].append(first_benef)
+            data["beneficiaires"] = data["beneficiaires"][1:]
         
         return data
-
+    
     def _parse_domains(self, text: str) -> List[Dict[str, Any]]:
         """Parsing amélioré des domaines de tiers payant avec extraction des valeurs"""
         domains_data = []

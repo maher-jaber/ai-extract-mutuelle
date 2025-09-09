@@ -1,0 +1,116 @@
+{
+  "success": true,
+  "source": {
+    "method": "ocr_tesseract",
+    "pages": 2,
+    "text_length": 2577
+  },
+  "general": {
+    "mutuelle": "SP SP OC",
+    "contrat": {
+      "numero": "0000000000177056"
+    },
+    "identifiants": {
+      "numero_adherent": "20222441"
+    },
+    "gestionnaire_tiers_payant": "iSanté"
+  },
+  "adherents": [],
+  "beneficiaires": [
+    {
+      "role": "benef",
+      "nom": " MERLY MARIE",
+      "prenom": "CLAU",
+      "date_naissance": null,
+      "num_assure": null
+    }
+  ],
+  "domaines_tiers_payant": [
+    {
+      "code": "PHAR",
+      "libelle": "Pharmacie remboursable",
+      "valeur": "MED RLAX SAGE EXTE CSTE HOSP OPTI DESO DEPR AUDI DIV",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "MED",
+      "libelle": "Médecin (généraliste/spécialiste)",
+      "valeur": "M",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "RLAX",
+      "libelle": "Laboratoires + Radiologues + Auxiliaires médicaux",
+      "valeur": "Laboratoires",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "SAGE",
+      "libelle": "Sages-femmes",
+      "valeur": "Sages-Femmes Centre de Gestion KLESIA MUT",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": "KLESIA"
+    },
+    {
+      "code": "EXTE",
+      "libelle": "Soins externes",
+      "valeur": "Soins externes sauf proth",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "CSTE",
+      "libelle": "Centre de Santé hors dentaire",
+      "valeur": "Centre de Sant",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": "PLANSANTE"
+    },
+    {
+      "code": "HOSP",
+      "libelle": "Hospitalisation",
+      "valeur": "Hospitalisation hors soins externes Prise en charge optique",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "OPTI",
+      "libelle": "Optique",
+      "valeur": "Opticien Fax",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "DESO",
+      "libelle": "Soins dentaires",
+      "valeur": "Soins dentaires appel s",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "AUDI",
+      "libelle": "Audioprothèses",
+      "valeur": "Audioproth",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "DIV",
+      "libelle": "Divers",
+      "valeur": "Transport sanitaire",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    }
+  ],
+  "diagnostics": {
+    "score_estime": 0.76,
+    "qr_hint_detected": false,
+    "champs_trouves": 8
+  },
+  "metadata": {
+    "fichier": "uploads\\20250909_123317_MUTUELLE 2025-6.pdf",
+    "timestamp": "2025-09-09T12:33:19.498518"
+  }
+}

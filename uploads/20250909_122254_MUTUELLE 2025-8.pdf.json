@@ -1,0 +1,67 @@
+{
+  "success": true,
+  "source": {
+    "method": "ocr_tesseract",
+    "pages": 1,
+    "text_length": 2711
+  },
+  "general": {
+    "mutuelle": "uteur",
+    "identifiants": {
+      "numero_adherent": "773776"
+    },
+    "periode_validite": {
+      "debut": "01/01/2025",
+      "fin": "31/12/2025"
+    },
+    "gestionnaire_tiers_payant": "Viamedis"
+  },
+  "adherents": [],
+  "beneficiaires": [],
+  "domaines_tiers_payant": [
+    {
+      "code": "PHAR",
+      "libelle": "Pharmacie remboursable",
+      "valeur": "LABO RADI AUXM SOIE OPTI HOSP SOID PROD CONG CONS TRAN CURE",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": "Viamedis"
+    },
+    {
+      "code": "LABO",
+      "libelle": "Laboratoire",
+      "valeur": "Laboratoire PROD Proth",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "HOSP",
+      "libelle": "Hospitalisation",
+      "valeur": "Hospitalisation hors soins externes CONS Consultations sp",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "OPTI",
+      "libelle": "Optique",
+      "valeur": "Optique CURE Cure",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "AUXM",
+      "libelle": "Auxiliaires médicaux",
+      "valeur": "Auxiliaires m",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    }
+  ],
+  "diagnostics": {
+    "score_estime": 0.55,
+    "qr_hint_detected": false,
+    "champs_trouves": 5
+  },
+  "metadata": {
+    "fichier": "uploads\\20250909_122254_MUTUELLE 2025-8.pdf",
+    "timestamp": "2025-09-09T12:22:56.593330"
+  }
+}
