@@ -1,0 +1,88 @@
+{
+  "success": true,
+  "source": {
+    "method": "ocr_tesseract",
+    "pages": 1,
+    "text_length": 2711
+  },
+  "general": {
+    "mutuelle": "uteur",
+    "identifiants": {
+      "numero_adherent": "773776"
+    },
+    "periode_validite": {
+      "debut": "01/01/2025",
+      "fin": "31/12/2025"
+    },
+    "gestionnaire_tiers_payant": "Viamedis"
+  },
+  "adherents": [],
+  "beneficiaires": [],
+  "domaines_tiers_payant": [
+    {
+      "code": "PHAR",
+      "libelle": "Pharmacie remboursable",
+      "valeur": "LABO RADI AUXM SOIE OPTI HOSP SOID PROD CONG CONS TRAN CURE",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "LABO",
+      "libelle": "Laboratoire",
+      "valeur": "RADI AUXM SOIE OPTI HOSP SOID PROD CONG CONS TRAN CURE",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "AUXM",
+      "libelle": "Auxiliaires médicaux",
+      "valeur": "SOIE OPTI HOSP SOID PROD CONG CONS TRAN CURE",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "HOSP",
+      "libelle": "Hospitalisation",
+      "valeur": "SOID PROD CONG CONS TRAN CURE",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "OPTI",
+      "libelle": "Optique",
+      "valeur": "HOSP SOID PROD CONG CONS TRAN CURE",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "PROD",
+      "libelle": "Prothèses dentaires",
+      "valeur": "CONG CONS TRAN CURE",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "TRAN",
+      "libelle": "Transport sanitaire",
+      "valeur": "CURE",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    },
+    {
+      "code": "CURE",
+      "libelle": "Cure thermale",
+      "valeur": "Non spécifié",
+      "condition": "Condition non spécifiée",
+      "gestionnaire": null
+    }
+  ],
+  "diagnostics": {
+    "score_estime": 0.69,
+    "qr_hint_detected": false,
+    "champs_trouves": 7
+  },
+  "metadata": {
+    "fichier": "uploads\\20250909_114931_MUTUELLE 2025-8.pdf",
+    "timestamp": "2025-09-09T11:49:34.066006"
+  }
+}

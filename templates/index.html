@@ -1,23 +1,108 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>OCR Carte Mutuelle</title>
-    <link rel="stylesheet" href="/static/style.css">
+  <meta charset="utf-8"/>
+  <title>Extraction Attestation Mutuelle</title>
+  <link rel="stylesheet" href="/static/style.css"/>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <h1>OCR Carte Mutuelle</h1>
-            <form id="uploadForm">
-                <input type="file" id="fileInput" name="file" accept="pdf/*" required>
-                <button type="submit">Analyser</button>
-            </form>
-            <div id="spinner" class="spinner hidden"></div>
-            <pre id="result"></pre>
+  <div class="container">
+    <h1>Extraction Attestation / Carte de Tiers Payant</h1>
+    <form id="form">
+      <input type="file" id="file" accept="application/pdf" required />
+      <button>Analyser</button>
+    </form>
+
+    <div id="alert"></div>
+
+    <section id="general" class="card hidden">
+      <h2>Informations générales</h2>
+      <table>
+        <tbody id="general-body"></tbody>
+      </table>
+    </section>
+
+    <section id="people" class="card hidden">
+      <div class="grid">
+        <div>
+          <h2>Adhérent</h2>
+          <table>
+            <thead><tr><th>Nom</th><th>Prénom</th><th>Date Naissance</th></tr></thead>
+            <tbody id="adh"></tbody>
+          </table>
         </div>
-    </div>
-    <script src="/static/script.js"></script>
+        <div>
+          <h2>Bénéficiaires</h2>
+          <table>
+            <thead><tr><th>Rôle</th><th>Nom</th><th>Prénom</th><th>Date Naissance</th></tr></thead>
+            <tbody id="ben"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="domains" class="card hidden">
+      <h2>Domaines Tiers Payant</h2>
+      <table>
+        <thead><tr><th>Code</th><th>Libellé</th><th>Gestionnaire</th><th>Condition</th></tr></thead>
+        <tbody id="dom"></tbody>
+      </table>
+    </section>
+
+    <details class="card">
+      <summary>Diagnostics & extrait brut</summary>
+      <pre id="diag"></pre>
+    </details>
+  </div>
+
+<script>
+const $ = s => document.querySelector(s);
+const form = $("#form");
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("#alert").textContent = "Analyse en cours…";
+  const fd = new FormData();
+  fd.append("file", $("#file").files[0]);
+
+  const res = await fetch("/upload", { method: "POST", body: fd });
+  const js = await res.json();
+
+  $("#alert").textContent = "";
+
+  const d = js.data || {};
+  // ----- General
+  const g = d.general || {};
+  const gb = $("#general-body");
+  gb.innerHTML = "";
+  function row(k, v){ const tr = document.createElement("tr"); tr.innerHTML = `<th>${k}</th><td>${v ?? ""}</td>`; gb.appendChild(tr); }
+  row("Mutuelle", g.mutuelle || "");
+  if (g.contrat?.numero) row("N° Contrat/Police", g.contrat.numero);
+  if (g.identifiants?.numero_adherent) row("N° Adhérent", g.identifiants.numero_adherent);
+  if (g.identifiants?.nir) row("NIR", g.identifiants.nir);
+  if (g.identifiants?.dre) row("DRE", g.identifiants.dre);
+  if (g.gestionnaire_tiers_payant) row("Gestionnaire TP", g.gestionnaire_tiers_payant);
+  if (g.type_convention?.code) row("Convention", `${g.type_convention.code} ${g.type_convention.libelle ? "– "+g.type_convention.libelle : ""}`);
+  if (g.periode_validite) row("Validité", `${g.periode_validite.debut || ""} → ${g.periode_validite.fin || ""}`);
+  $("#general").classList.remove("hidden");
+
+  // ----- People
+  const adh = d.adherents || [];
+  const ben = d.beneficiaires || [];
+  const adhT = $("#adh"); adhT.innerHTML="";
+  const benT = $("#ben"); benT.innerHTML="";
+  adh.forEach(p => adhT.insertAdjacentHTML("beforeend", `<tr><td>${p.nom||""}</td><td>${p.prenom||""}</td><td>${p.date_naissance||""}</td></tr>`));
+  ben.forEach(p => benT.insertAdjacentHTML("beforeend", `<tr><td>${p.role||""}</td><td>${p.nom||""}</td><td>${p.prenom||""}</td><td>${p.date_naissance||""}</td></tr>`));
+  if (adh.length || ben.length) $("#people").classList.remove("hidden");
+
+  // ----- Domains
+  const dom = d.domaines_tiers_payant || [];
+  const domT = $("#dom"); domT.innerHTML="";
+  dom.forEach(r => domT.insertAdjacentHTML("beforeend", `<tr><td>${r.code}</td><td>${r.libelle||""}</td><td>${r.gestionnaire||""}</td><td>${r.condition||""}</td></tr>`));
+  if (dom.length) $("#domains").classList.remove("hidden");
+
+  // ----- Diagnostics
+  $("#diag").textContent = JSON.stringify({source: d.source, diagnostics: d.diagnostics, raw_excerpt: d.raw_excerpt}, null, 2);
+});
+</script>
 </body>
 </html>
-

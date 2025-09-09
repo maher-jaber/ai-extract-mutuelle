@@ -1,379 +1,566 @@
 import re
-from typing import Dict, Optional, List
-from datetime import datetime
+import io
+import json
+import pdfplumber
+from typing import List, Dict, Any, Optional, Tuple
 import logging
+from datetime import datetime
 
-logger = logging.getLogger("ocr_api")
+# Configuration du logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def normalize_ocr(text: str) -> str:
-    """Normalise le texte OCR pour améliorer la reconnaissance"""
-    text = text.replace("\n", " ").replace("\r", " ")
-    text = re.sub(r"[^A-Za-z0-9éèêëàâäîïôöùûüç/@.,:;'\- ]", " ", text)
-    text = re.sub(r"\s+", " ", text)
+# OCR (optionnels, on gère l'absence proprement)
+try:
+    import pytesseract
+    from pdf2image import convert_from_path
+    from PIL import Image
+    TESSERACT_OK = True
+except Exception:
+    TESSERACT_OK = False
+
+try:
+    import easyocr
+    EASY_OK = True
+except Exception:
+    EASY_OK = False
+
+from utils_date import parse_fr_date, normalize_date_ddmmyyyy
+
+DOMAIN_ABBR = {
+    "PHAR": "Pharmacie remboursable",
+    "MED": "Médecin (généraliste/spécialiste)",
+    "LABO": "Laboratoire",
+    "RAD": "Radiologie",
+    "AUXM": "Auxiliaires médicaux",
+    "SAGE": "Sages-femmes",
+    "HOSP": "Hospitalisation",
+    "OPTI": "Optique",
+    "DENT": "Soins dentaires",
+    "SODI": "Soins dentaires",
+    "PROD": "Prothèses dentaires",
+    "DEPR": "Prothèses dentaires",
+    "DESO": "Soins dentaires",
+    "AUDI": "Audioprothèses",
+    "TRAN": "Transport sanitaire",
+    "CURE": "Cure thermale",
+    "SVIL": "Sages-Femmes, Laboratoires, Radiologues, Auxiliaires Médicaux",
+    "RLAX": "Laboratoires + Radiologues + Auxiliaires médicaux",
+    "EXTE": "Soins externes",
+    "CSTE": "Centre de Santé hors dentaire",
+    "DIV": "Divers",
+    "INF": "Infirmier",
+    "KIN": "Kinésithérapie",
+    "CHAM": "Chambre particulière",
+    "DEOR": "Orthodontie",
+}
+
+TP_MANAGERS = ["Carte Blanche", "iSanté", "Viamedis", "Almerys", "SP Santé", "TP+", "Kalivia", "Santéclair", "KLESIA", "SOGAREP", "SOCIA REP", "AXA", "PLANSANTE"]
+
+CONVENTION_KEYS = {
+    "TB": "CBTP / Tiers payant géré par réseau",
+    "CB": "Carte Blanche",
+    "DC7VM": "Convention Viamedis",
+}
+
+ROLE_WORDS = {
+    "adh": ["adhérent", "assuré principal", "titulaire", "souscripteur", "assuré"],
+    "conjoint": ["conjoint", "époux", "épouse", "partenaire"],
+    "enfant": ["enfant", "ayants droit", "ayant droit"],
+    "benef": ["bénéficiaire", "bénéficiaires"],
+}
+
+# Expressions régulières améliorées
+RE_CONTRAT = re.compile(r"(?:N[°º]?\s*(?:contrat|police)\s*:?\s*)([A-Z0-9\-\/\.]{4,})", re.I)
+RE_ADHERENT_ID = re.compile(r"(?:N[°º]?\s*(?:adhérent|adherent|assuré|assure|n°\s*adhérent)\s*:?\s*)([A-Z0-9]{5,})", re.I)
+RE_NIR = re.compile(r"(?:NIR|N°\s*(?:sécu|sécurité\s*sociale|SS|INSEE)\s*:?\s*)([12][0-9]{2}[0-1][0-9](?:[0-9]{2})?[0-9]{3}[0-9]{3}(?:[0-9]{2})?)", re.I)
+RE_ORGA = re.compile(r"(?:Organisme|Mutuelle|Assureur|Complémentaire|OC|Émetteur|Gestionnaire)\s*:?\s*([A-Z0-9\-\&\'\s\.]{3,})", re.I)
+RE_PERIODE = re.compile(
+    r"(?:Valable|Validité|Période|Du)\s*:?\s*(\d{1,2}(?:er)?[\s\/\-]+\w+[\s\/\-]+\d{4}|\d{2}[\/\-]\d{2}[\/\-]\d{4})"
+    r".{0,30}?(?:au|-|→|>|\s+au\s+|jusqu'au|jusqu'au|jusqu'à)"
+    r"\s*(\d{1,2}(?:er)?[\s\/\-]+\w+[\s\/\-]+\d{4}|\d{2}[\/\-]\d{2}[\/\-]\d{4})",
+    re.I
+)
+RE_DATE_EFFET = re.compile(r"(?:Date\s*d(?:e|')effet|Début)\s*:?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})", re.I)
+RE_DATE_FIN = re.compile(r"(?:Date\s*de\s*fin|Échéance|Fin)\s*:?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})", re.I)
+RE_DRE = re.compile(r"\bDRE\s*[:\-]?\s*([0-9]{5,})", re.I)
+RE_CONVENTION = re.compile(r"\b(TB|CB|DC7VM)\b", re.I)
+RE_QR_HINT = re.compile(r"(?:QR|Datamatrix|flash\s*code|code\s*à\s*barres)", re.I)
+RE_AMC = re.compile(r"N°\s*AMC\s*:?\s*([0-9]{6,})", re.I)
+
+# Dates & personnes améliorées
+RE_DATE = re.compile(r"(?:Né(?:e)?\s*le|Date\s*de\s*naissance|Naissance)\s*:?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})", re.I)
+RE_PERSON_LINE = re.compile(
+    r"(?:(Adhérent|Assuré principal|Bénéficiaire|Conjoint|Enfant|Ayant droit|Assuré)[\s:–-]*)?"
+    r"([A-ZÉÈÀÂÎÏÔÖÛÜÇ' -]{2,})[,\s;]+([A-ZÉÈÀÂÎÏÔÖÛÜÇ' -]{2,})"
+    r".{0,50}?(?:Né(?:e)?\s*le|Date\s*de\s*naissance|Naissance)\s*:?\s*(\d{2}[\/\-]\d{2}[\/\-]\d{4})",
+    re.I
+)
+
+# Regex pour les tableaux de domaines
+RE_DOMAIN_TABLE = re.compile(
+    r"(?:(?:PHAR|MED|HOSP|OPTI|DENT|AUDI|TRAN|CURE|LABO|RAD|AUXM).{1,20}?){3,}",
+    re.I
+)
+
+def normalize_spaces(text: str) -> str:
+    text = text.replace("\r", "\n")
+    text = re.sub(r"[ \t\f\v]+", " ", text)
+    text = re.sub(r"\n{2,}", "\n", text)
     return text.strip()
 
-class MutuelleExtractor:
+def any_in(text: str, words: List[str]) -> bool:
+    text_lower = text.lower()
+    return any(w.lower() in text_lower for w in words)
+
+def extract_table_data(text: str) -> List[Dict[str, str]]:
+    """Extrait les données des tableaux de manière plus robuste"""
+    lines = text.split('\n')
+    table_data = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Chercher des patterns de tableau avec séparateurs
+        if re.search(r'[|¦]', line) or re.search(r'\b(PHAR|MED|HOSP|OPTI|DENT|AUDI)\b', line, re.I):
+            # Nettoyer la ligne
+            clean_line = re.sub(r'[|¦]', ' ', line)
+            clean_line = re.sub(r'\s+', ' ', clean_line).strip()
+            
+            # Extraire les domaines et leurs valeurs
+            for domain in DOMAIN_ABBR.keys():
+                if re.search(rf'\b{domain}\b', clean_line, re.I):
+                    # Trouver la valeur après le domaine
+                    value_match = re.search(rf'{domain}\s+([^\s]+)', clean_line, re.I)
+                    value = value_match.group(1) if value_match else "Non spécifié"
+                    
+                    table_data.append({
+                        "code": domain,
+                        "libelle": DOMAIN_ABBR.get(domain, domain),
+                        "valeur": value,
+                        "ligne_complete": clean_line
+                    })
+    
+    return table_data
+
+class MutuelleExtractorFR:
+    """Extracteur amélioré pour les attestations de mutuelle française"""
+
     def __init__(self):
-        self.patterns = {
-            "nom_prenom": [
-                # Patterns plus précis pour éviter les faux positifs
-                r"(?:BÉNÉFICIAIRE|BENEFICIAIRE|ASSURÉ|ASSURE)[\s:]*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ'\- ]{3,}?)(?=\s*(?:Date|Né|N°|AMC|$))",
-                r"(?:Nom[\s\-]*Prénom|NOM[\s\-]*PRENOM)[\s:]*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ'\- ]{3,}?)(?=\s*(?:Date|Né|N°|AMC|$))",
-                r"Assuré principal AMC[\s:]*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ'\- ]{3,}?)(?=\s*(?:Date|Né|N°|AMC|$))",
-                r"M\.?\/?Mme\.?\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ'\- ]{3,}?)(?=\s*(?:\d|Date|Né|N°|AMC|$))",
-                r"^([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ'\- ]{3,}?)(?=\s*\d{2}/\d{2}/\d{4})"
-            ],
-            "nir": [
-                r"\b[12](?:\d{2})(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])(\d{2}[0-9AB]?\d{2,4}\d{2})\b",
-                r"\b([12]\d{2}[0-1]\d[0-3]\d[\dAB]\d{4}\d{2})\b",
-                r"N°\s*INSEE[\s:]*([\d\sAB]{13,15})",
-                r"(\d[\d\sAB]{12,14}\d)"
-            ],
-            "numero_amc": [
-                r"N°\s*AMC[\s:]*([0-9]{6,10})",
-                r"AMC[\s:]*([0-9]{6,10})",
-                r"\b(\d{8})\b(?=\s*Typ Conv)",
-                r"AMC[\s:]*(\d{6,8})"
-            ],
-            "numero_adherent": [
-                r"N°\s*Adhérent[\s:]*([0-9]{6,15})",
-                r"Adhérent[\s:]*([0-9]{6,15})",
-                r"N°\s*adhérent[\s:]*([0-9]{6,15})",
-                r"Adhérent[\s:]*(\d{6,10})"
-            ],
-            "numero_contrat": [
-                r"N°\s*Contrat[\s:]*([A-Z0-9\-]{6,20})",
-                r"Contrat[\s:]*([A-Z0-9\-]{6,20})",
-                r"Police[\s:]*([A-Z0-9\-]{6,20})",
-                r"Contrat[\s:]*(\d{6,15})"
-            ],
-            "date_naissance": [
-                r"Date\s*naissé[\s:]*([0-9]{2}/[0-9]{2}/[0-9]{4})",
-                r"Né[e]?\s*le[\s:]*([0-9]{2}/[0-9]{2}/[0-9]{4})",
-                r"Naissance[\s:]*([0-9]{2}/[0-9]{2}/[0-9]{4})",
-                r"\b(\d{2}/\d{2}/\d{4})\b(?=\s*Rang)",
-                r"\b(\d{4}/\d{2}/\d{2})\b",
-                r"Date.*naissance[\s:]*([0-9]{2}/[0-9]{2}/[0-9]{4})",
-                r"(\d{2}/\d{2}/\d{4})(?=\s*(?:ans|âge|born|birth))",
-                r"(\d{2}/\d{2}/\d{4})"
-            ],
-            "date_validite": [
-                r"Période\s*de\s*validité[\s:]*([0-9]{2}/[0-9]{2}/[0-9]{4}\s*au\s*[0-9]{2}/[0-9]{2}/[0-9]{4})",
-                r"Validité[\s:]*([0-9]{2}/[0-9]{2}/[0-9]{4}\s*au\s*[0-9]{2}/[0-9]{2}/[0-9]{4})",
-                r"Valable\s*du\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\s*au\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
-                r"Valid\s*from\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\s*to\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
-                r"([0-9]{2}/[0-9]{2}/[0-9]{4})\s*[-–]\s*([0-9]{2}/[0-9]{2}/[0-9]{4})",
-                r"Validité\s*:\s*([0-9]{2}/[0-9]{2}/[0-9]{4})\s*-\s*([0-9]{2}/[0-9]{2}/[0-9]{4})"
-            ],
-            "mutuelle": [
-                r"(Aesio|Aésio|APRIL|Henner|Harmonie|Harmonié|AXA|MGEN|Groupama|Malakoff|Humanis|AG2R|Generali|Allianz|Viamedis|SP Santé|SG Santé|ProBTP|Unéo|Klesia|SOGAREP|PLANSANTE|VIAMEDIS|ROEDERER|KLESIA MUT|SPRESS|KALIXIA)"
-            ],
-            "email": [
-                r"[\w\.-]+@[\w\.-]+\.\w{2,4}"
-            ],
-            "telephone": [
-                r"Tél\.?[\s:]*([0+33\s\d\.\-\(\)]{10,15})",
-                r"Téléphone[\s:]*([0+33\s\d\.\-\(\)]{10,15})",
-                r"\b(0[\d\s\.\-]{8,13}\d)\b",
-                r"Tel[\s:]*([\d\s\.\-\(\)]{10,15})"
-            ],
-            "adresse": [
-                r"(\d+\s+[A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+[\d]{5}\s+[A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)",
-                r"([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+\s+[\d]{5}\s+[A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)"
-            ],
-            "garanties": [
-                r"(PHAR|MED|HOSP|OPTI|AUDI|DENT|TRAN|CURE|LABO|RADIO|AUXM|SAGE|EXTE|DESO|DEPR)[\s\S]{1,50}?(\d{2,3}%|PEC|100/100/100|100%)",
-                r"(\d{2,3}%|PEC|100/100/100)[\s\S]{1,30}?(PHAR|MED|HOSP|OPTI|AUDI|DENT)"
-            ]
+        self.extraction_stats = {
+            "pdf_text_chars": 0,
+            "ocr_text_chars": 0,
+            "method_used": "pdf_text"
         }
 
-    def extract(self, text: str) -> Dict[str, Optional[str]]:
-        data = {}
-        norm_text = normalize_ocr(text)
+    def _extract_text_pdf_native(self, pdf_path: str) -> Tuple[str, int]:
+        """Extraction améliorée du texte PDF avec pdfplumber"""
+        text = []
+        pages = 0
+        try:
+            with pdfplumber.open(pdf_path) as pdf:
+                pages = len(pdf.pages)
+                for p in pdf.pages:
+                    # Extraction du texte avec meilleure configuration
+                    t = p.extract_text(
+                        x_tolerance=3,
+                        y_tolerance=3,
+                        keep_blank_chars=False,
+                        use_text_flow=True
+                    ) or ""
+                    text.append(t)
+                    
+                    # Tentative d'extraction des tableaux
+                    tables = p.extract_tables()
+                    for table in tables:
+                        for row in table:
+                            text.append(" | ".join([str(cell or "") for cell in row]))
+        except Exception as e:
+            logger.error(f"Erreur extraction PDF: {e}")
         
-        logger.info(f"Texte normalisé pour extraction: {norm_text[:200]}...")
-        
-        # Extraire d'abord les données structurées
-        data.update(self._extract_structured_data(norm_text))
-        
-        # Extraire spécifiquement les dates
-        data.update(self._extract_dates(norm_text))
-        
-        # Extraire les garanties détaillées
-        data.update(self._extract_garanties_detaillees(norm_text))
-        
-        # Extraire les coordonnées
-        data.update(self._extract_coordonnees(norm_text))
-        
-        # Puis les données par patterns regex
-        for key, patterns in self.patterns.items():
-            if key not in data:  # Ne pas écraser les données déjà extraites
-                for pat in patterns:
-                    try:
-                        m = re.search(pat, norm_text, re.IGNORECASE)
-                        if m:
-                            val = self._extract_value_from_match(m, key)
-                            if val:
-                                normalized_val = self._normalize_field(key, val)
-                                if self._validate_field(key, normalized_val):
-                                    data[key] = normalized_val
-                                    logger.info(f"Extrait {key}: {normalized_val}")
-                                    break
-                    except Exception as e:
-                        logger.warning(f"Erreur pattern {key}: {e}")
-                        continue
+        full_text = "\n".join(text)
+        self.extraction_stats["pdf_text_chars"] = len(full_text)
+        return full_text, pages
 
-        # Nettoyer les données de manière plus agressive
-        data = self._clean_extracted_data(data, norm_text)
+    def _extract_text_ocr(self, pdf_path: str) -> Tuple[str, int, str]:
+        """Extraction OCR améliorée"""
+        method = None
+        text = ""
+        pages = 0
         
-        return {k: v for k, v in data.items() if v}
+        try:
+            images = convert_from_path(pdf_path, dpi=300, grayscale=True)
+            pages = len(images)
+        except Exception as e:
+            logger.error(f"Erreur conversion PDF en images: {e}")
+            images = []
+            
+        if images:
+            if TESSERACT_OK:
+                method = "ocr_tesseract"
+                for img in images:
+                    # Configuration améliorée pour Tesseract
+                    custom_config = r'--oem 3 --psm 6 -l fra'
+                    text += pytesseract.image_to_string(img, config=custom_config) + "\n"
+                    
+            elif EASY_OK:
+                method = "ocr_easyocr"
+                reader = easyocr.Reader(["fr"], gpu=False)
+                for img in images:
+                    res = reader.readtext(img, detail=0, paragraph=True, text_threshold=0.7)
+                    text += "\n".join(res) + "\n"
+        
+        self.extraction_stats["ocr_text_chars"] = len(text)
+        self.extraction_stats["method_used"] = method or "ocr_unavailable"
+        
+        return text, pages, method or "ocr_unavailable"
 
-    def _extract_value_from_match(self, match, key: str) -> Optional[str]:
-        """Extrait la valeur appropriée selon le type de champ"""
-        if key == "date_validite" and match.lastindex >= 2:
-            # Pour la validité, on combine début et fin
-            start = match.group(1).strip()
-            end = match.group(2).strip()
-            return f"{start} au {end}"
-        elif match.lastindex:
-            return match.group(1).strip()
+    def _parse_general(self, text: str) -> Dict[str, Any]:
+        """Parsing amélioré des informations générales"""
+        general: Dict[str, Any] = {}
+
+        # Organisme / Mutuelle (recherche améliorée)
+        orga_patterns = [
+            r"(?:Organisme|Mutuelle|Assureur|Complémentaire|OC|Émetteur)\s*:?\s*([A-Z0-9\-\&\'\s\.]{3,})",
+            r"([A-Z\s]{3,})\s*(?:Assurances|Mutuelle|Santé|Prévoyance)",
+            r"Cette carte est émise par et sous la responsabilité de\s+([^,]+)"
+        ]
+        
+        for pattern in orga_patterns:
+            m = re.search(pattern, text, re.I)
+            if m:
+                general["mutuelle"] = m.group(1).strip()
+                break
+
+        # Contrat / Police
+        m = RE_CONTRAT.search(text)
+        if m:
+            general.setdefault("contrat", {})["numero"] = m.group(1).strip()
+
+        # N° adhérent
+        m = RE_ADHERENT_ID.search(text)
+        if m:
+            general.setdefault("identifiants", {})["numero_adherent"] = m.group(1).strip()
+
+        # N° AMC
+        m = RE_AMC.search(text)
+        if m:
+            general.setdefault("identifiants", {})["numero_amc"] = m.group(1).strip()
+
+        # NIR (si visible)
+        m = RE_NIR.search(text)
+        if m:
+            general.setdefault("identifiants", {})["nir"] = m.group(1).strip()
+
+        # DRE (télétransmission)
+        m = RE_DRE.search(text)
+        if m:
+            general.setdefault("identifiants", {})["dre"] = m.group(1).strip()
+
+        # Type de convention TB/CB
+        m = RE_CONVENTION.search(text)
+        if m:
+            code = m.group(1).upper()
+            general["type_convention"] = {"code": code, "libelle": CONVENTION_KEYS.get(code, code)}
+
+        # Période de validité (recherche améliorée)
+        m = RE_PERIODE.search(text)
+        if m:
+            d1 = parse_fr_date(m.group(1))
+            d2 = parse_fr_date(m.group(2))
+            general["periode_validite"] = {
+                "debut": normalize_date_ddmmyyyy(d1) if d1 else m.group(1),
+                "fin": normalize_date_ddmmyyyy(d2) if d2 else m.group(2),
+            }
         else:
-            return match.group(0).strip()
+            m1 = RE_DATE_EFFET.search(text)
+            m2 = RE_DATE_FIN.search(text)
+            if m1 or m2:
+                general["periode_validite"] = {
+                    "debut": m1.group(1) if m1 else None,
+                    "fin": m2.group(1) if m2 else None,
+                }
 
-    def _clean_extracted_data(self, data: Dict[str, str], full_text: str) -> Dict[str, str]:
-        """Nettoie les données extraites de manière plus agressive"""
-        cleaned = data.copy()
-        
-        # Nettoyer le nom prénom de manière très stricte
-        if "nom_prenom" in cleaned:
-            nom = cleaned["nom_prenom"]
-            
-            # Supprimer les mots communs qui ne sont pas des noms
-            mots_a_supprimer = [
-                'Rang', 'N', 'INSEE', 'Né', 'le', 'VM', 'VYM', 'ITVM', 'OC', 'sur', 
-                'Wwww', 'www', 'http', 'https', 'com', 'fr', 'Date', 'Naissance',
-                'Bénéficiaire', 'Assuré', 'Principal', 'AMC'
-            ]
-            
-            for mot in mots_a_supprimer:
-                nom = re.sub(rf"\b{mot}\b", "", nom, flags=re.IGNORECASE)
-            
-            # Supprimer les numéros, dates, etc.
-            nom = re.sub(r"\s*\d.*$", "", nom)
-            nom = re.sub(r"\s*\d{2}/\d{2}/\d{4}.*$", "", nom)
-            nom = re.sub(r"[^A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ'\- ]", " ", nom)
-            nom = re.sub(r"\s+", " ", nom).strip()
-            
-            # Validation finale : doit contenir au moins 2 mots et pas seulement des stopwords
-            mots = nom.split()
-            if len(mots) >= 2 and any(len(mot) > 2 for mot in mots):
-                cleaned["nom_prenom"] = nom
-            else:
-                # Si le nom est invalide, on le supprime
-                del cleaned["nom_prenom"]
-            
-        # Nettoyer la date de validité
-        if "date_validite" in cleaned:
-            cleaned["date_validite"] = cleaned["date_validite"].replace("-", "au")
-            
-        return cleaned
+        # Gestionnaire tiers payant (chercher noms connus)
+        for label in TP_MANAGERS:
+            if re.search(rf"\b{re.escape(label)}\b", text, re.I):
+                general["gestionnaire_tiers_payant"] = label
+                break
 
-    # Les autres méthodes restent les mêmes que précédemment...
-    def _extract_dates(self, text: str) -> Dict[str, str]:
-        """Extraction spécifique des dates avec validation"""
-        dates_data = {}
+        return general
+
+    def _parse_people(self, text: str) -> Dict[str, List[Dict[str, Any]]]:
+        """Parsing amélioré des personnes - évite les en-têtes de tableau"""
+        data = {"adherents": [], "beneficiaires": []}
         
-        # Extraction des dates de naissance
-        dob_patterns = [
-            r"(\d{2}/\d{2}/\d{4})(?=\s*(?:ans|âge|born|birth|naissance|né|née))",
-            r"Date.*?(\d{2}/\d{2}/\d{4})",
-            r"Né.*?(\d{2}/\d{2}/\d{4})",
-            r"Naissance.*?(\d{2}/\d{2}/\d{4})"
+        # Liste des patterns d'en-têtes de tableau à exclure
+        table_headers = [
+            "PHAR", "MED", "LABO", "RAD", "AUXM", "SAGE", "HOSP", "OPTI", "DENT", 
+            "SODI", "PROD", "DEPR", "DESO", "AUDI", "TRAN", "CURE", "SVIL", "RLAX",
+            "EXTE", "CSTE", "DIV", "INF", "KIN", "CHAM", "DEOR"
         ]
         
-        for pattern in dob_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                date_str = match.group(1)
-                if self._validate_date(date_str):
-                    dates_data["date_naissance"] = date_str
-                    break
-        
-        # Extraction des dates de validité
-        validity_patterns = [
-            r"(\d{2}/\d{2}/\d{4})\s*[-–]\s*(\d{2}/\d{2}/\d{4})",
-            r"du\s*(\d{2}/\d{2}/\d{4})\s*au\s*(\d{2}/\d{2}/\d{4})",
-            r"from\s*(\d{2}/\d{2}/\d{4})\s*to\s*(\d{2}/\d{2}/\d{4})"
+        # Recherche des sections de bénéficiaires
+        benef_section_patterns = [
+            r"Bénéficiaire[s]? du tiers payant(.+?)(?=Dépenses de santé|Assuré principal|$)",
+            r"Nom\s*[-\s]*Prénom(.+?)(?=\n\n|\n[A-Z]|$)",
+            r"Assuré principal(.+?)(?=\n\n|\n[A-Z]|$)"
         ]
         
-        for pattern in validity_patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match and len(match.groups()) >= 2:
-                start_date = match.group(1)
-                end_date = match.group(2)
-                if self._validate_date(start_date) and self._validate_date(end_date):
-                    dates_data["date_validite"] = f"{start_date} au {end_date}"
-                    break
+        for pattern in benef_section_patterns:
+            sections = re.findall(pattern, text, re.I | re.DOTALL)
+            for section in sections:
+                lines = section.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    # Éviter les en-têtes de tableau
+                    if any(header in line.upper() for header in table_headers):
+                        continue
+                    
+                    # Éviter les lignes avec uniquement des codes de domaine
+                    if re.search(rf"\b({'|'.join(table_headers)})\b", line, re.I):
+                        continue
+                    
+                    # Recherche nom, prénom, date de naissance
+                    name_match = re.search(r"([A-ZÉÈÀÂÎÏÔÖÛÜÇ' -]{2,})[,\s]+([A-ZÉÈÀÂÎÏÔÖÛÜÇ' -]{2,})", line)
+                    date_match = RE_DATE.search(line)
+                    
+                    if name_match or date_match:
+                        nom = name_match.group(1) if name_match else None
+                        prenom = name_match.group(2) if name_match else None
+                        date_naissance = date_match.group(1) if date_match else None
+                        
+                        # Vérifier que ce n'est pas un code de domaine
+                        if nom and any(header in nom.upper() for header in table_headers):
+                            continue
+                        if prenom and any(header in prenom.upper() for header in table_headers):
+                            continue
+                        
+                        # Détermination du rôle
+                        role = "benef"
+                        if re.search(r"assuré principal", line, re.I):
+                            role = "adh"
+                        
+                        person = {
+                            "role": role,
+                            "nom": nom,
+                            "prenom": prenom,
+                            "date_naissance": date_naissance,
+                            "num_assure": None
+                        }
+                        
+                        if role == "adh":
+                            data["adherents"].append(person)
+                        else:
+                            data["beneficiaires"].append(person)
         
-        return dates_data
-
-    def _extract_garanties_detaillees(self, text: str) -> Dict[str, str]:
-        """Extraction détaillée des garanties"""
-        garanties = {}
-        
-        # Patterns pour les différentes garanties
-        garantie_patterns = {
-            "pharmacie": r"PHAR[^%]*(\d{2,3}%|PEC|100/100/100)",
-            "medecins": r"MED[^%]*(\d{2,3}%|PEC|100%)",
-            "hopital": r"HOSP[^%]*(\d{2,3}%|PEC|100%)",
-            "optique": r"OPTI[^%]*(\d{2,3}%|PEC|100%)",
-            "dentaire": r"DENT[^%]*(\d{2,3}%|PEC|100%)",
-            "audioprothese": r"AUDI[^%]*(\d{2,3}%|PEC|100%)",
-            "transport": r"TRAN[^%]*(\d{2,3}%|PEC|100%)",
-            "cure": r"CURE[^%]*(\d{2,3}%|PEC|100%)"
-        }
-        
-        for garantie, pattern in garantie_patterns.items():
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                garanties[f"garantie_{garantie}"] = match.group(1).strip()
-        
-        return garanties
-
-    def _extract_coordonnees(self, text: str) -> Dict[str, str]:
-        """Extraction des coordonnées"""
-        coordonnees = {}
-        
-        # Adresse
-        adresse_match = re.search(r"(\d+\s+[A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+[\d]{5}\s+[A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)", text)
-        if adresse_match:
-            coordonnees["adresse"] = adresse_match.group(1).strip()
-        
-        # Code postal
-        cp_match = re.search(r"(\d{5})\s+[A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]", text)
-        if cp_match:
-            coordonnees["code_postal"] = cp_match.group(1).strip()
-        
-        # Ville
-        ville_match = re.search(r"\d{5}\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)(?=\s|$)", text)
-        if ville_match:
-            coordonnees["ville"] = ville_match.group(1).strip()
-        
-        return coordonnees
-
-    def _extract_structured_data(self, text: str) -> Dict[str, str]:
-        """Extrait les données des sections structurées"""
-        data = {}
-        
-        # Section bénéficiaire structurée
-        benef_match = re.search(r"Bénéficiaire\(s\) du tiers payant[\s\S]*?Nom[\s-]*Prénom[\s:]*([A-Z\s]+)[\s\S]*?Date naissé[\s:]*([0-9/]+)", text, re.IGNORECASE)
-        if benef_match:
-            data["nom_prenom"] = benef_match.group(1).strip()
-            date_str = benef_match.group(2).strip()
-            if self._validate_date(date_str):
-                data["date_naissance"] = date_str
-            logger.info(f"Données structurées extraites: {data}")
-        
-        # Section assuré principal
-        assure_match = re.search(r"Assuré principal AMC[\s:]*([A-Z\s]+)", text, re.IGNORECASE)
-        if assure_match and "nom_prenom" not in data:
-            data["nom_prenom"] = assure_match.group(1).strip()
-            logger.info(f"Assuré principal extrait: {data['nom_prenom']}")
-            
-        # Section validité structurée
-        validity_match = re.search(r"Période\s*de\s*validité[\s:]*([0-9]{2}/[0-9]{2}/[0-9]{4}\s*au\s*[0-9]{2}/[0-9]{2}/[0-9]{4})", text, re.IGNORECASE)
-        if validity_match:
-            validity_str = validity_match.group(1)
-            dates = validity_str.split(" au ")
-            if len(dates) == 2 and all(self._validate_date(date.strip()) for date in dates):
-                data["date_validite"] = validity_str
-        
-        # Section numéro AMC structurée
-        amc_match = re.search(r"N°AMC[\s:]*([0-9]{6,10})", text, re.IGNORECASE)
-        if amc_match:
-            data["numero_amc"] = amc_match.group(1).strip()
-            
-        # Section numéro adhérent structurée
-        adherent_match = re.search(r"N°\s*adhérent[\s:]*([0-9]{6,15})", text, re.IGNORECASE)
-        if adherent_match:
-            data["numero_adherent"] = adherent_match.group(1).strip()
-            
         return data
 
-    def _validate_date(self, date_str: str) -> bool:
-        """Valide une date au format JJ/MM/AAAA"""
+    def _parse_domains(self, text: str) -> List[Dict[str, Any]]:
+        """Parsing amélioré des domaines de tiers payant avec extraction des valeurs"""
+        domains_data = []
+        
+        # Recherche des tableaux de domaines
+        table_pattern = r"(?:" + "|".join(DOMAIN_ABBR.keys()) + r").+?(?:\n.*){1,10}"
+        table_sections = re.findall(table_pattern, text, re.I | re.DOTALL)
+        
+        for section in table_sections:
+            lines = section.split('\n')
+            current_line = ""
+            
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                
+                current_line += " " + line
+                
+                # Recherche des domaines et leurs valeurs
+                for domain_code in DOMAIN_ABBR.keys():
+                    if re.search(rf"\b{domain_code}\b", current_line, re.I):
+                        # Pattern amélioré pour extraire la valeur
+                        value_patterns = [
+                            rf"{domain_code}\s+([A-Z0-9%\(\)\/\s\-]+(?:\s+[A-Z0-9%\(\)\/\s\-]+)?)",
+                            rf"{domain_code}[^\w]*([^\n]+)"
+                        ]
+                        
+                        value = "Non spécifié"
+                        for pattern in value_patterns:
+                            value_match = re.search(pattern, current_line, re.I)
+                            if value_match:
+                                value = value_match.group(1).strip()
+                                # Nettoyer la valeur
+                                value = re.sub(r'\s+', ' ', value).strip()
+                                break
+                        
+                        # Extraire la condition depuis la valeur
+                        condition = self._extract_condition(value)
+                        
+                        domains_data.append({
+                            "code": domain_code,
+                            "libelle": DOMAIN_ABBR.get(domain_code, domain_code),
+                            "valeur": value,
+                            "condition": condition,
+                            "gestionnaire": self._extract_gestionnaire(current_line)
+                        })
+                        
+                        current_line = ""
+                        break
+            
+            # Traitement de la dernière ligne accumulée
+            if current_line:
+                for domain_code in DOMAIN_ABBR.keys():
+                    if re.search(rf"\b{domain_code}\b", current_line, re.I):
+                        value_match = re.search(rf"{domain_code}\s+([^\s]+)", current_line, re.I)
+                        value = value_match.group(1).strip() if value_match else "Non spécifié"
+                        
+                        domains_data.append({
+                            "code": domain_code,
+                            "libelle": DOMAIN_ABBR.get(domain_code, domain_code),
+                            "valeur": value,
+                            "condition": self._extract_condition(value),
+                            "gestionnaire": self._extract_gestionnaire(current_line)
+                        })
+        
+        # Déduplication
+        unique_domains = {}
+        for domain in domains_data:
+            if domain["code"] not in unique_domains:
+                unique_domains[domain["code"]] = domain
+        
+        return list(unique_domains.values())
+
+    def _extract_condition(self, value: str) -> str:
+        """Extrait les conditions depuis la valeur avec plus de précision"""
+        conditions = {
+            "100%": "Prise en charge à 100%",
+            "100/100/100": "Prise en charge à 100% sur tous les postes",
+            "PEC": "Prise en charge conditionnelle",
+            "TM": "Tiers payant",
+            "VIA": "Via gestionnaire",
+            "non": "Non pris en charge",
+            "IDB": "Indemnités journalières de base"
+        }
+        
+        value_upper = value.upper()
+        for cond, desc in conditions.items():
+            if cond.upper() in value_upper:
+                return desc
+        
+        # Détection des pourcentages
+        percent_match = re.search(r"(\d{1,3})%", value)
+        if percent_match:
+            return f"Prise en charge à {percent_match.group(1)}%"
+        
+        return "Condition non spécifiée"
+    
+    def _parse_structured_table(self, text: str) -> List[Dict[str, Any]]:
+        """Parse les tableaux structurés avec séparateurs"""
+        domains_data = []
+        
+        # Recherche des lignes avec séparateurs de tableau
+        table_lines = re.findall(r'(?:\b(?:PHAR|MED|HOSP|OPTI|DENT|AUDI)\b.*?[|\n])', text, re.I)
+        
+        for line in table_lines:
+            # Nettoyer et splitter la ligne
+            clean_line = re.sub(r'[|¦]', '|', line).strip()
+            parts = [part.strip() for part in clean_line.split('|') if part.strip()]
+            
+            if len(parts) >= 2:
+                for i, part in enumerate(parts):
+                    for domain_code in DOMAIN_ABBR.keys():
+                        if re.search(rf'\b{domain_code}\b', part, re.I):
+                            # La valeur est généralement dans la colonne suivante
+                            value = parts[i+1] if i+1 < len(parts) else "Non spécifié"
+                            
+                            domains_data.append({
+                                "code": domain_code,
+                                "libelle": DOMAIN_ABBR.get(domain_code, domain_code),
+                                "valeur": value,
+                                "condition": self._extract_condition(value),
+                                "gestionnaire": self._extract_gestionnaire(line)
+                            })
+        
+        return domains_data
+    
+    def _extract_gestionnaire(self, line: str) -> Optional[str]:
+        """Extrait le gestionnaire depuis la ligne"""
+        for manager in TP_MANAGERS:
+            if manager.lower() in line.lower():
+                return manager
+        return None
+
+    def extract(self, pdf_path: str) -> Dict[str, Any]:
+        """Méthode principale d'extraction améliorée"""
         try:
-            # Normaliser la date
-            date_str = date_str.replace(".", "/").replace("-", "/")
-            if re.match(r"\d{4}/\d{2}/\d{2}", date_str):
-                parts = date_str.split("/")
-                date_str = f"{parts[2]}/{parts[1]}/{parts[0]}"
-            
-            date_obj = datetime.strptime(date_str, "%d/%m/%Y")
-            current_year = datetime.now().year
-            # Dates raisonnables (entre 1900 et année courante + 5 ans pour validité)
-            return 1900 <= date_obj.year <= current_year + 5
-        except ValueError:
-            return False
+            # 1) Extraction PDF natif
+            text_native, pages_native = self._extract_text_pdf_native(pdf_path)
+            text_used = text_native
+            method = "pdf_text"
+            pages = pages_native
 
-    def _normalize_field(self, key: str, value: str) -> str:
-        if key in ["date_naissance", "date_validite"]:
-            value = value.replace(".", "/").replace("-", "/")
-            # Normaliser le format de date
-            if re.match(r"\d{4}/\d{2}/\d{2}", value):
-                parts = value.split("/")
-                value = f"{parts[2]}/{parts[1]}/{parts[0]}"
-                
-        if key in ["numero_amc", "numero_adherent", "nir"]:
-            value = re.sub(r"\D", "", value)
-            
-        if key == "nom_prenom":
-            value = " ".join(value.split())
-            # Nettoyer les titres
-            value = re.sub(r"^(M\.?|Mme\.?|MR\.?|MME\.?)\s*", "", value)
-            
-        if key == "telephone":
-            value = re.sub(r"[^\d+]", "", value)
-            if value.startswith("33"):
-                value = "0" + value[2:]
-            elif value.startswith("+33"):
-                value = "0" + value[3:]
-                
-        return value
+            # 2) Fallback OCR si texte insuffisant
+            if len(text_native.strip()) < 100:
+                text_ocr, pages_ocr, meth = self._extract_text_ocr(pdf_path)
+                if len(text_ocr.strip()) > len(text_native.strip()):
+                    text_used = text_ocr
+                    method = meth
+                    pages = pages_ocr
 
-    def _validate_field(self, key: str, value: str) -> bool:
-        """Valide les champs extraits"""
-        if not value:
-            return False
+            text_used = normalize_spaces(text_used)
             
-        if key == "nir":
-            return self._validate_nir(value)
+            # 3) Parsing des données
+            general = self._parse_general(text_used)
+            people = self._parse_people(text_used)
+            domains = self._parse_domains(text_used)
             
-        if key in ["date_naissance", "date_validite"]:
-            return self._validate_date(value)
-                
-        if key == "nom_prenom":
-            # Un nom valide doit avoir au moins 2 parties (nom et prénom)
-            parts = value.split()
-            return len(parts) >= 2 and len(value) >= 5
+            # 4) Calcul du score de confiance
+            found = 0
+            if general.get("mutuelle"): found += 1
+            if general.get("gestionnaire_tiers_payant"): found += 1
+            if general.get("periode_validite"): found += 1
+            if general.get("type_convention"): found += 1
+            found += len(people["adherents"]) + len(people["beneficiaires"])
+            found += len(domains) // 2
             
-        if key == "telephone":
-            # Un numéro français valide a 10 chiffres
-            digits = re.sub(r"\D", "", value)
-            return len(digits) == 10 and digits.startswith("0")
-            
-        return True
+            score = min(1.0, 0.2 + 0.07 * found)
 
-    def _validate_nir(self, nir: str) -> bool:
-        """Valide le numéro de sécurité sociale"""
-        try:
-            # Nettoyer le NIR
-            nir_clean = re.sub(r"\D", "", nir)
-            if len(nir_clean) != 13:
-                return False
-                
-            num = nir_clean[:-2]
-            cle = int(nir_clean[-2:])
-            return (97 - (int(num) % 97)) == cle
-        except:
-            return False
+            return {
+                "success": True,
+                "source": {
+                    "method": method,
+                    "pages": pages,
+                    "text_length": len(text_used)
+                },
+                "general": general,
+                "adherents": people["adherents"],
+                "beneficiaires": people["beneficiaires"],
+                "domaines_tiers_payant": domains,
+                "diagnostics": {
+                    "score_estime": round(score, 2),
+                    "qr_hint_detected": bool(RE_QR_HINT.search(text_used)),
+                    "champs_trouves": found
+                },
+                "metadata": {
+                    "fichier": pdf_path,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de l'extraction: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "source": {"method": "error", "pages": 0},
+                "general": {},
+                "adherents": [],
+                "beneficiaires": [],
+                "domaines_tiers_payant": [],
+                "diagnostics": {"score_estime": 0.0, "qr_hint_detected": False}
+            }

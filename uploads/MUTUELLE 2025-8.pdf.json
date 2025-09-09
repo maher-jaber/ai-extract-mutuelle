@@ -1,0 +1,414 @@
+{
+  "success": true,
+  "source": {
+    "method": "ocr_tesseract",
+    "pages": 1
+  },
+  "general": {
+    "mutuelle": "uteur",
+    "identifiants": {
+      "numero_adherent": "773776"
+    },
+    "periode_validite": {
+      "debut": "01/01/2025",
+      "fin": "31/12/2025"
+    },
+    "gestionnaire_tiers_payant": "Viamedis"
+  },
+  "adherents": [
+    {
+      "role": "adh",
+      "nom": ". X 4 VO) 5G R 3 O",
+      "prenom": "Votre Attestati",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "adh",
+      "nom": "SERVICES RÉSERVÉS À NOS ADHÉRENTS CONNECTÉS !",
+      "prenom": "N° Adhérent : 773776 M. Johnny Bonnet",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "adh",
+      "nom": "N° ADHÉRENT : 773776 M. JOHNNY BONNET",
+      "prenom": "Entreprise : 271070 . Rm System France Sas 65 Avenue De Denain",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "adh",
+      "nom": "N°ADHÉRENT : 773776",
+      "prenom": "Phar Labo Radi Auxm Soie Opti Hosp Soid Prod Cong Cons Tran Cure",
+      "date_naissance": null,
+      "num_assure": null
+    }
+  ],
+  "beneficiaires": [
+    {
+      "role": "benef",
+      "nom": "VOTRE ATTESTATI",
+      "prenom": "Otre Attestation + -",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "OTRE ATTESTATION + -",
+      "prenom": "_ _# [(& :",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "_ _# [(& :",
+      "prenom": "De Fichi ° |",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "DE FICHI ° |",
+      "prenom": "À Ro = D F Re R Ensemble, Construisons Les Meilleures Solutions",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": " D F RE R ENSEMBLE",
+      "prenom": "CONSTRUISONS LES MEILLEURES SOLUTIONS",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": " EN",
+      "prenom": "ASSURANCES",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "CRÉEZ VOTRE ESPACE ASSURÉ SUR",
+      "prenom": "Www.Roederer.Fr Et Bénéficiez Des Nombreux",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "WWW.ROEDERER.FR ET BÉNÉFICIEZ DES NOMBREUX",
+      "prenom": "Services Réservés À Nos Adhérents Connectés !",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": " RM SYSTEM FRANCE",
+      "prenom": "SAS ",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "VOTRE INTERLOCUTEUR : FABIENNE WANTZ",
+      "prenom": "Courriel : Affiliation @Roederer.Fr 59300 Valenciennes",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "COURRIEL : AFFILIATION @ROEDERER.FR 59300 VALENCIENNES",
+      "prenom": "Strasbourg, Le 21 Mars 2025",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "STRASBOURG, LE 21 MARS 2025",
+      "prenom": "Cette Attestation Est Délivrée Afin De Bénéficier Du Tiers Payant.",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "CETTE ATTESTATION EST DÉLIVRÉE AFIN DE BÉNÉFICIER DU TIERS PAYANT.",
+      "prenom": "Attestation De Tiers Payant Viamedis Réseau Kalixia",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "ATTESTATION DE TIERS PAYANT",
+      "prenom": "VIAMEDIS ",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "SV-DRE-TP",
+      "prenom": "AMC ",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "L7",
+      "prenom": "E N°Amc : 004 01 687",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "E N°AMC : 004 01 687",
+      "prenom": "Typ. Conv : Oc/Vm Csr",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "VM",
+      "prenom": "CSR",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "PHAR LABO RADI AUXM SOIE OPTI HOSP SOID PROD CONG CONS TRAN",
+      "prenom": "CURE",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": " PEC",
+      "prenom": "PEC",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": " VIA",
+      "prenom": "VIAS ",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "VALIDITÉ DU 01/01/2025 AU 31/12/2025",
+      "prenom": "Autres Domaines Visés Par L'Article L871-1 Du Code De La Ss, Contactez Tp@Roederer.Fr",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": " SS",
+      "prenom": " C",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "1 : (DONT 15%)",
+      "prenom": "2 : Hors Parcours De Soins : Majoration Du T.M. À La Charge De L'Assuré.Le T.M Comprend Le Forfait De 18 €",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "2 : HORS PARCOURS DE SOINS : MAJORATION DU T.M. À LA CHARGE DE L'ASSURÉ.LE T.M COMPREND LE FORFAIT DE 18 €",
+      "prenom": "3 : Prise En Charge Hospitalière Sur Portail Viamedis",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "3 : PRISE EN CHARGE HOSPITALIÈRE SUR PORTAIL VIAMEDIS",
+      "prenom": "Coordonnées Viamedis",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "COORDONNÉES VIAMEDIS",
+      "prenom": "107, Avenue Gabriel Péri Cs 80003",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "107, AVENUE GABRIEL PÉRI CS 80003",
+      "prenom": "94172 Le Perreux Sur Marne Cedex",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "94172 LE PERREUX SUR MARNE CEDEX",
+      "prenom": "Www.Viamedis.Net",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "WWW.VIAMEDIS.NET",
+      "prenom": "Professionnel.Sante @ Viamedis.Fr",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "PROFESSIONNEL.SANTE @ VIAMEDIS.FR",
+      "prenom": "Tél : 0825 076 076 (Service 0,15€Ttc/Min + Prix Appel)",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "TÉL : 0825 076 076 (SERVICE 0,15€TTC/MIN + PRIX APPEL)",
+      "prenom": "Fax : 0825 826 282 (Service 0,15€Ttc/Min + Prix Appel)",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "FAX : 0825 826 282 (SERVICE 0,15€TTC/MIN + PRIX APPEL)",
+      "prenom": "Signification De La Codification :",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "SIGNIFICATION DE LA CODIFICATION :",
+      "prenom": "| Phar Pharmacie Remboursable Soid Soins Dentaires (Sauf Prothèse Dentaire)",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "| PHAR PHARMACIE REMBOURSABLE SOID SOINS DENTAIRES (SAUF PROTHÈSE DENTAIRE)",
+      "prenom": "| Labo Laboratoire Prod Prothèse Dentaire",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "| LABO LABORATOIRE PROD PROTHÈSE DENTAIRE",
+      "prenom": "Radi Radiologie Cong Consultations Généralistes",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "RADI RADIOLOGIE CONG CONSULTATIONS GÉNÉRALISTES",
+      "prenom": "| Hosp Hospitalisation Hors Soins Externes Cons Consultations Spécialistes",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "| HOSP HOSPITALISATION HORS SOINS EXTERNES CONS CONSULTATIONS SPÉCIALISTES",
+      "prenom": "| Soie Soins Externes Trans Transport",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "| SOIE SOINS EXTERNES TRANS TRANSPORT",
+      "prenom": "Opti Optique Cure Cure",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "OPTI OPTIQUE CURE CURE",
+      "prenom": "| Auxm Auxiliaires Médicaux (Infirmiers, Masseurs-Kinésithérapeutes, Orthophonistes, Pédicures Et Aides Orthophoniste)",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "| AUXM AUXILIAIRES MÉDICAUX (INFIRMIERS, MASSEURS-KINÉSITHÉRAPEUTES, ORTHOPHONISTES, PÉDICURES ET AIDES ORTHOPHONISTE)",
+      "prenom": "Roederer | Strasbourg | Metz | Nancy | Paris 11",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "ROEDERER | STRASBOURG | METZ | NANCY | PARIS 11",
+      "prenom": "2, Rue Bartisch - B.P. 30193 - 67022 Strasbourg Cedex 1 * Tél : +33 (0)3 88 76 73 00 » Fax : +33 (0)3 88 76 73 10 + Www.Roederer.Fr Et;",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "2, RUE BARTISCH - B.P. 30193 - 67022 STRASBOURG CEDEX 1 * TÉL : +33 (0)3 88 76 73 00 » FAX : +33 (0)3 88 76 73 10 + WWW.ROEDERER.FR ET;",
+      "prenom": "N°Rcs : B339 623 860 Strasbourg + N° Siret : 339 623 860 000 55 » N° Tva : Fr 82339623860 Ars À",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "N°RCS : B339 623 860 STRASBOURG + N° SIRET : 339 623 860 000 55 » N° TVA : FR 82339623860 ARS À",
+      "prenom": "Sas Au Capital Social De 7 000 000 Euros » Orias : N°07000336 * Www.Orias.Fr ( Uniba Ex]",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "SAS AU CAPITAL SOCIAL DE 7 000 000 EUROS » ORIAS : N°07000336 * WWW.ORIAS.FR ( UNIBA EX]",
+      "prenom": "Autorité De Contrôle Prudentiel Et De Résolution : Acpr + 4, Place De Budapest + Cs 92459 » 75436 Paris Cedex 09 (Ljpartners",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": " PARIS",
+      "prenom": "CEDEX ",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "TRAITEMENT DES RÉCLAMATIONS : CONSULTABLE SUR NOTRE SITE INTERNET OU AUPRÈS DU RESPONSABLE CONFORMITÉ AU 03 88 76 73 00 TEE,",
+      "prenom": "Médiation De L'Assurance Csca / Tsa 50110 75441 Paris Cedex 09 / Mail : Le.Mediateur @Mediation-Assurance.Org Ke",
+      "date_naissance": null,
+      "num_assure": null
+    },
+    {
+      "role": "benef",
+      "nom": "MÉDIATION DE L'ASSURANCE CSCA / TSA 50110 75441 PARIS CEDEX 09 / MAIL : LE.MEDIATEUR @MEDIATION-ASSURANCE.ORG KE",
+      "prenom": "Ajouter À Une Note",
+      "date_naissance": null,
+      "num_assure": null
+    }
+  ],
+  "domaines_tiers_payant": [
+    {
+      "code": "PHAR",
+      "libelle": "Pharmacie remboursable",
+      "gestionnaire": null,
+      "condition": null,
+      "ligne": "PHAR LABO RADI AUXM SOIE OPTI HOSP SOID PROD CONG CONS TRAN CURE"
+    },
+    {
+      "code": "HOSP",
+      "libelle": "Hospitalisation",
+      "gestionnaire": null,
+      "condition": null,
+      "ligne": "| HOSP Hospitalisation hors soins externes CONS Consultations spécialistes"
+    },
+    {
+      "code": "OPTI",
+      "libelle": "Optique",
+      "gestionnaire": null,
+      "condition": null,
+      "ligne": "OPTI Optique CURE Cure"
+    }
+  ],
+  "diagnostics": {
+    "score_estime": 1.0,
+    "qr_hint_detected": false
+  },
+  "raw_excerpt": ". x 4 Vo) 5G R 3 O\nVotre attestati\notre attestation + -\n _ _# [(& :\nde fichi ° |\nÀ RO = D F RE R ENSEMBLE, CONSTRUISONS LES MEILLEURES SOLUTIONS\nA courrier EN ASSURANCES\nCréez votre espace assuré sur\nwww.roederer.fr et bénéficiez des nombreux\nservices réservés à nos adhérents connectés !\nN° Adhérent : 773776 M. Johnny BONNET\nEntreprise : 271070 . RM SYSTEM FRANCE SAS 65 AVENUE DE DENAIN\nVotre interlocuteur : Fabienne WANTZ\nCourriel : affiliation @roederer.fr 59300 VALENCIENNES\nSTRASBOURG, le 21 mars 2025\nCette attestation est délivrée afin de bénéficier du Tiers Payant.\nATTESTATION DE TIERS PAYANT VIAMEDIS réseau KALIXIA\nSV-DRE-TP AMC : 00401687 STS 8 DRE.VM.001.0@ viamedis.rss.fr N° Télétransmission : 75990010\nL7\nE N°AMC : 004 01 687\nTyp. Conv : OC/VM CSR\nN°Adhérent : 773776\nPHAR LABO RADI AUXM SOIE OPTI HOSP SOID PROD CONG CONS TRAN CURE\nBONNET Johnny PEC PEC\n22/03/1988 1 88 03 59 544 112 100%! 100% 100%2 100% 100% VIA VIAS 100 % non 100%2 100% 100% non\nValidité du 01/01/2025 au 31/12/2025\nAutres domaines visés par l'article L871-1 du code de la SS, Contactez tp@roederer.fr\n1 : (Dont 15%)\n2 : Hors Parcours de soins : Majoration du T.M. à la charge de l'assuré.Le T.M comprend le forfait de 18 €\n3 : Prise en charge hospitalière sur portail VIAMEDIS\nCoordonnées VIAMEDIS\n107, avenue Gabriel Péri CS 80003\n94172 Le Perreux sur Marne Cedex\nwww.viamedis.net\nprofessionnel.sante @ viamedis.fr\nTél : 0825 076 076 (service 0,15€TTC/min + prix appel)\nFax : 0825 826 282 (service 0,15€TTC/min + prix appel)\nSignification de la codification :\n| PHAR Pharmacie remboursable SOID Soins dentaires (sauf prothèse dentaire)\n| LABO Laboratoire PROD Prothèse dentaire\nRADI Radiologie CONG Consultations généralistes\n| HOSP Hospitalisation hors soins externes CONS Consultations spécialistes\n| SOIE Soins externes TRANS Transport\nOPTI Optique CURE Cure\n| AUXM Auxiliaires médicaux (infirmiers, masseurs-kinésithérapeutes, orthophonistes, pédicures et aides orthophoniste)\nROEDERER | STRASBOURG | METZ | NANCY | PARIS 11\n2, rue Bartisch - B.P. 30193 - 67022 STRASBOURG cedex 1 * Tél : +33 (0)3 88 76 73 00 » Fax : +33 (0)3 88 76 73 10 + www.roederer.fr ET;\nN°RCS : B339 623 860 Strasbourg + N° SIRET : 339 623 860 000 55 » N° TVA : FR 82339623860 Ars à\nSAS au capital social de 7 000 000 euros » Orias : N°07000336 * www.orias.fr ( UNIBA Ex]\nAutorité de Contrôle Prudentiel et de Résolution : ACPR + 4, place de Budapest + CS 92459 » 75436 PARIS CEDEX 09 (Ljpartners"
+}

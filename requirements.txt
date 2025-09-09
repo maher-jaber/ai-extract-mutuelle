@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+pdfplumber
+pytesseract
+pdf2image
+Pillow
+easyocr
+python-dateutil
+Jinja2
