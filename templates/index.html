@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>OCR Carte Mutuelle</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>OCR Carte Mutuelle</h1>
+            <form id="uploadForm">
+                <input type="file" id="fileInput" name="file" accept="pdf/*" required>
+                <button type="submit">Analyser</button>
+            </form>
+            <div id="spinner" class="spinner hidden"></div>
+            <pre id="result"></pre>
+        </div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
+
