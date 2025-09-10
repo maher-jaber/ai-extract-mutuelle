@@ -7,7 +7,7 @@ import re
 import json
 import logging
 import os
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, List
 import numpy as np
 from pathlib import Path
 
@@ -15,11 +15,13 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class GeneralizedOCRProcessor:
-    def __init__(self, lang='fr'):
+    def __init__(self, lang='fr', debug=False):
         """Initialise OCR + NER"""
         self.ocr = PaddleOCR(use_textline_orientation=True, lang=lang)
         self.ner_pipeline = None
-
+        self.mutuelle_patterns = self._initialize_mutuelle_patterns() 
+        self.debug = debug
+                
         try:
             from transformers import pipeline
             try:
@@ -34,7 +36,7 @@ class GeneralizedOCRProcessor:
                 logger.info("Multilingual NER pipeline initialized")
         except Exception as e:
             logger.warning(f"NER unavailable: {e}")
-
+  
     def preprocess_image(self, image: Union[str, np.ndarray]) -> Optional[np.ndarray]:
         """Prétraitement agressif pour améliorer l'OCR"""
         try:
@@ -47,30 +49,40 @@ class GeneralizedOCRProcessor:
                 if len(img.shape) == 3:
                     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-            # Redimensionnement si trop petit
-            h, w = img.shape
-            if h < 1200 or w < 1200:
-                scale = max(1200/h, 1200/w)
-                img = cv2.resize(img, (int(w*scale), int(h*scale)), interpolation=cv2.INTER_CUBIC)
-
-            # CLAHE
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
-            img = clahe.apply(img)
-
-            # Denoising
-            img = cv2.fastNlMeansDenoising(img, h=10)
-
-            # Binarisation Otsu
-            _, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-            # Morphologie (fermeture pour coller les caractères)
-            kernel = np.ones((2, 2), np.uint8)
-            img = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
+            # Sauvegarder l'image originale en mode debug
+            if self.debug:
+                cv2.imwrite("debug_original.png", img)
 
             return img
         except Exception as e:
             logger.error(f"Preprocessing failed: {e}")
-            return None
+            return None    
+                
+    def _initialize_mutuelle_patterns(self):
+        """Patterns pour différentes mutuelles françaises"""
+        return {
+            'PLANSANTE': [r'PLANSANTE', r'KLESIA'],
+            'AXA': [r'AXA', r'AXA\s+FRANCE'],
+            'SOGAREP': [r'SOGAREP'],
+            'ROEDERER': [r'ROEDERER'],
+            'VIAMEDIS': [r'VIAMEDIS', r'KALIXIA'],
+            'HARMONIE': [r'HARMONIE'],
+            'MGEN': [r'MGEN'],
+            'GROUPAMA': [r'GROUPAMA'],
+            'MATMUT': [r'MATMUT'],
+            'GENERALI': [r'GENERALI'],
+            'MACIF': [r'MACIF'],
+            'MAIF': [r'MAIF'],
+            'MMA': [r'MMA']
+        }
+
+    def detect_mutuelle(self, text: str) -> Optional[str]:
+        """Détection automatique de la mutuelle"""
+        for mutuelle_name, patterns in self.mutuelle_patterns.items():
+            for pattern in patterns:
+                if re.search(pattern, text, re.IGNORECASE):
+                    return mutuelle_name
+        return None
 
     def run_paddleocr(self, img_path: str) -> str:
         # Utilisez predict() au lieu de ocr()
@@ -107,14 +119,34 @@ class GeneralizedOCRProcessor:
         temp_path = "temp_preprocessed.png"
         cv2.imwrite(temp_path, processed)
 
+        # Mode debug: sauvegarder l'image pour inspection
+        if self.debug:
+            debug_path = "debug_final_preprocessed.png"
+            cv2.imwrite(debug_path, processed)
+            logger.info(f"Debug image saved: {debug_path}")
+
         text_paddle = self.run_paddleocr(temp_path)
         text_tesseract = self.run_tesseract(processed)
 
-        if os.path.exists(temp_path):
+        # Mode debug: sauvegarder les résultats textuels
+        if self.debug:
+            with open("debug_paddle_results.txt", "w", encoding="utf-8") as f:
+                f.write(text_paddle)
+            with open("debug_tesseract_results.txt", "w", encoding="utf-8") as f:
+                f.write(text_tesseract)
+            logger.info("Debug text files saved")
+
+        if os.path.exists(temp_path) and not self.debug:  # Ne pas supprimer en mode debug
             os.remove(temp_path)
 
         combined = text_paddle + "\n" + text_tesseract
         logger.info(f"OCR Fusion: Paddle={len(text_paddle)} chars, Tesseract={len(text_tesseract)} chars")
+        
+        # Mode debug: sauvegarder le résultat combiné
+        if self.debug:
+            with open("debug_combined_results.txt", "w", encoding="utf-8") as f:
+                f.write(combined)
+        
         return combined.strip()
 
     def ocr_from_pdf(self, pdf_path: str) -> str:
@@ -153,9 +185,6 @@ class GeneralizedOCRProcessor:
         text = re.sub(r"([A-Z])\s+([A-Z])", r"\1\2", text)  # colle lettres séparées
         return text.strip()
     
-
-
-    
     def extract_text_from_pdf(self, pdf_path: str) -> str:
         """Extract text from PDF with multiple fallback methods"""
         text_content = ""
@@ -189,10 +218,56 @@ class GeneralizedOCRProcessor:
         
         return text_content.strip()
 
-    
-    
-
-
+    def extract_table_data(self, text: str) -> Dict:
+        """Extract table data from the text - version généralisée"""
+        table_data = {}
+        
+        # Catégories de prestations étendues
+        categories = {
+            "PHAR": ["PHAR", "Pharmacie", "Médicaments"],
+            "MED": ["MED", "Médecins", "Consultations"],
+            "RLAX": ["RLAX", "Laboratoires", "Analyses", "Radiologie"],
+            "SVIL": ["SVIL", "Sages-Femmes", "Auxiliaires"],
+            "LABO": ["LABO", "Laboratoire"],
+            "RAID": ["RAID", "Radiologie"],
+            "AUXM": ["AUXM", "Auxiliaires"],
+            "SAGE": ["SAGE", "Sages-Femmes"],
+            "EXTE": ["EXTE", "Soins externes", "Externes"],
+            "CSTE": ["CSTE", "Centre de Santé"],
+            "HOSP": ["HOSP", "Hospitalisation", "Hôpital"],
+            "OPTI": ["OPTI", "Opticien", "Lunettes"],
+            "DESO": ["DESO", "Soins dentaires", "Dentiste"],
+            "DENT": ["DENT", "Dentaire"],
+            "DEPR": ["DEPR", "Prothèse dentaire", "Couronne"],
+            "PROD": ["PROD", "Prothèse dentaire"],
+            "AUDI": ["AUDI", "Audioprothèse", "Audition"],
+            "DIV": ["DIV", "Divers", "Transport", "Fournisseurs"],
+            "TRAN": ["TRAN", "Transport", "Ambulance"],
+            "CURE": ["CURE", "Cure", "Thermal"],
+            "CONG": ["CONG", "Congés"]
+        }
+        
+        # Recherche par catégorie avec patterns flexibles
+        for category, keywords in categories.items():
+            for keyword in keywords:
+                # Pattern flexible pour différents formats
+                patterns = [
+                    rf"{keyword}[:\s]*([\d%/\(\)PEC\s\-]+)",
+                    rf"{keyword}\s+([\d%/\(\)PEC\s\-]+)",
+                    rf"{keyword}[^\S\r\n]*([\d%/\(\)PEC\s\-]+)"
+                ]
+                
+                for pattern in patterns:
+                    matches = re.finditer(pattern, text, re.IGNORECASE)
+                    for match in matches:
+                        coverage = match.group(1).strip()
+                        if coverage and len(coverage) > 1:
+                            # Nettoyer la valeur
+                            coverage = re.sub(r'\s+', ' ', coverage)
+                            table_data[category] = coverage
+                            break
+        
+        return table_data
 
     def extract_info_with_generalized_regex(self, text: str) -> Dict:
         """Extract information using generalized regex patterns"""
@@ -213,11 +288,18 @@ class GeneralizedOCRProcessor:
             "date_debut_validite": None,
             "date_fin_validite": None,
             "beneficiaires": [],
+            "prestations": {},  # Added for table data
             "extraction_method": "generalized_regex"
         }
         
+        # Extract table data
+        data["prestations"] = self.extract_table_data(original_text)
+        
         # Extraction des bénéficiaires
         data["beneficiaires"] = self.extract_beneficiaires(original_text)
+        
+        # Détection automatique de la mutuelle
+        data["mutuelle"] = self.detect_mutuelle(original_text)
         
         # Si on a des bénéficiaires, utiliser le premier comme assuré principal
         if data["beneficiaires"]:
@@ -237,33 +319,43 @@ class GeneralizedOCRProcessor:
         
         # Patterns AMC
         amc_patterns = [
-            r'N°AMC\s*[:\-]?\s*(\d{6,})',
-            r'AMC\s*[:\-]?\s*(\d{6,})'
+            r'N[°ºoO]\s*AMC\s*[:\-]?\s*(\d{6,})',
+            r'AMC\s*[:\-]?\s*(\d{6,})',
+            r'SV-DRE-TP AMC\s*:\s*(\d{6,})'  # Pour VIAMEDIS
         ]
         
         # Patterns adhérent
         adherent_patterns = [
-            r'N° adhérent\s*[:\-]?\s*(\d{6,8})',
-            r'Dis\s*(\d{6,8})'
+            r'N[°ºoO]\s*adhérent\s*[:\-]?\s*(\d{6,8})',
+            r'Dis\s*(\d{6,8})',
+            r'N[°ºoO]\s*Adhérent\s*:\s*(\d{6,8})'  # Pour ROEDERER
         ]
         
         # Patterns contrat
         contract_patterns = [
-            r'N° contrat\s*[:\-]?\s*(\d{6,})',
+            r'N[°ºoO]\s*contrat\s*[:\-]?\s*(\d{8,12})',
+            r'Contrat\s*N[°ºoO]\s*(\d{8,12})'
         ]
         
         # Patterns mutuelle
         mutuelle_patterns = [
-            r'\b(PLANSANTE|KLESIA)\b',
+            r'\b(PLANSANTE|KLESIA|AXA|ROEDERER|SOGAREP|VIAMEDIS)\b',
         ]
         
         # Patterns dates
         date_patterns = [
             r'Date naiss[ée]\s*[:\-]?\s*(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{4})',
             r'Période de validité\s*:\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})\s*au\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
-            r'(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})\s*au\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'  # Pattern plus général
+            r'(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})\s*au\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',  # Pattern plus général
+            r'(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})\s*-\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'   # Pattern avec tiret
         ]
         
+        # Extraction des dates de validité améliorée
+        start_date, end_date = self.extract_dates_validite(original_text)
+        if start_date and end_date:
+            data["date_debut_validite"] = start_date
+            data["date_fin_validite"] = end_date
+            
         # Extraction numéro sécurité sociale
         for pattern in ssn_patterns:
             matches = re.finditer(pattern, original_text, re.IGNORECASE)
@@ -307,7 +399,7 @@ class GeneralizedOCRProcessor:
         for pattern in date_patterns:
             matches = re.finditer(pattern, text, re.IGNORECASE)
             for match in matches:
-                if "Période de validité" in pattern or "au" in pattern:
+                if "Période de validité" in pattern or "au" in pattern or "-" in pattern:
                     if len(match.groups()) >= 2:
                         start_date = re.sub(r'[\/\-\.]', '/', match.group(1))
                         end_date = re.sub(r'[\/\-\.]', '/', match.group(2))
@@ -322,6 +414,26 @@ class GeneralizedOCRProcessor:
                         data["date_naissance"] = normalized_date
         
         return data
+    
+    def extract_dates_validite(self, text: str) -> tuple:
+        """Extraction robuste des dates de validité"""
+        patterns = [
+            r'Période de validité\s*:\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})\s*au\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
+            r'Validité\s*:\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})\s*-\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
+            r'Du\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})\s*au\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
+            r'(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})\s*au\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
+        ]
+        
+        for pattern in patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                if len(match.groups()) >= 2:
+                    start_date = re.sub(r'[\/\-\.]', '/', match.group(1))
+                    end_date = re.sub(r'[\/\-\.]', '/', match.group(2))
+                    return start_date, end_date
+        
+        return None, None
+    
     def extract_names_fallback(self, text: str, data: Dict) -> None:
         """Fallback method to extract names when other methods fail"""
         # Recherche directe du pattern "Assuré principal AMC"
@@ -348,6 +460,7 @@ class GeneralizedOCRProcessor:
                 if any(keyword in context for keyword in ['naissance', 'naiss', 'né', 'nee']):
                     data["date_naissance"] = re.sub(r'[\/\-\.]', '/', match.group(1))
                     break
+
     def extract_info_with_ner(self, text: str) -> Dict:
         """Extract information using NER (Named Entity Recognition)"""
         if not self.ner_pipeline:
@@ -390,74 +503,98 @@ class GeneralizedOCRProcessor:
             logger.warning(f"NER extraction failed: {e}")
         
         return extracted_data
+
     def extract_beneficiaires(self, text: str) -> list:
-        """Extract all beneficiaries from the text"""
+        """Extract all beneficiaries from the text - version améliorée"""
         beneficiaires = []
         
-        # Plusieurs patterns pour trouver les bénéficiaires selon la structure du document
+        # Patterns multiples pour différentes structures de documents
         patterns = [
-            # Pattern 1: Structure tabulaire classique
-            r'Nom - Prénom\s*[\r\n]+\s*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)[\r\n]+\s*Date naiss[ée]\s*:?\s*Rang\s*[\r\n]+\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
+            # Pattern 1: Structure tabulaire classique (PLANSANTE, SOGAREP)
+            r'(?:Nom[-\s]*Prénom|Bénéficiaire)[:\s]*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)[\r\n]+\s*(?:Date\s*naiss[ée]|Date)[:\s]*([\d\/\.-]+)',
             
-            # Pattern 2: Format alternatif
-            r'Bénéficiaire\(s\) du tiers payant(.*?)(?:\n\n|\Z)',
+            # Pattern 2: Format VIAMEDIS/ROEDERER avec nom complet et date
+            r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{3,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
             
-            # Pattern 3: Recherche directe du nom
-            r'MERLY\s+MARIE\s+CLAU\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
+            # Pattern 3: Format avec nom et date sur la même ligne
+            r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
             
-            # Pattern 4: Ligne avec nom complet
-            r'([A-Z]{2,}\s+[A-Z]{2,}\s+[A-Z]{2,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
+            # Pattern 4: Format avec nom complet suivi de date
+            r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{5,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
+            
+            # Pattern 5: Format avec nom dans une table
+            r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}',
+            
+            # Pattern 6: Assuré principal avec date
+            r'Assuré[^\n]*:\s*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)[\s\S]*?(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
         ]
         
         for pattern in patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE | re.DOTALL)
+            matches = re.finditer(pattern, text, re.IGNORECASE)
             for match in matches:
-                if len(match.groups()) >= 2:
-                    # Pattern avec nom et date
-                    full_name = match.group(1).strip()
-                    date_naissance = match.group(2).strip()
+                if match.groups():
+                    full_name = ""
+                    date_naissance = None
                     
+                    if len(match.groups()) >= 2:
+                        full_name = match.group(1).strip()
+                        date_naissance = match.group(2).strip()
+                    elif len(match.groups()) >= 3:
+                        # Pattern avec nom et prénom séparés
+                        nom = match.group(1).strip()
+                        prenom = match.group(2).strip()
+                        full_name = f"{nom} {prenom}"
+                        date_naissance = match.group(3).strip() if len(match.groups()) >= 3 else None
+                    
+                    # Nettoyer le nom des artefacts OCR
+                    full_name = re.sub(r'\b(R|N|RN|Typ|Conv|CSR|INSEE|AMC|STS|VM|rang|Rang)\b', '', full_name, flags=re.IGNORECASE)
+                    full_name = re.sub(r'\s{2,}', ' ', full_name).strip()
+                    
+                    if len(full_name) < 3:
+                        continue
+                        
                     name_parts = full_name.split()
                     if len(name_parts) >= 2:
                         beneficiaire = {
                             "nom": name_parts[0],
-                            "prenom": " ".join(name_parts[1:]),
-                            "date_naissance": date_naissance
+                            "prenom": " ".join(name_parts[1:])
                         }
-                        beneficiaires.append(beneficiaire)
-                        break
-                else:
-                    # Pattern de section - analyser le contenu
-                    section_content = match.group(1)
-                    lines = section_content.split('\n')
-                    
-                    for i, line in enumerate(lines):
-                        line = line.strip()
-                        if re.match(r'^[A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{5,}$', line) and not any(x in line for x in ['PHAR', 'MED', 'RLAX', 'SAGE']):
-                            name_parts = line.split()
-                            if len(name_parts) >= 2:
-                                beneficiaire = {"nom": name_parts[0], "prenom": " ".join(name_parts[1:])}
-                                
-                                # Chercher la date dans les lignes suivantes
-                                for j in range(i+1, min(i+3, len(lines))):
-                                    date_match = re.search(r'(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})', lines[j])
-                                    if date_match:
-                                        beneficiaire["date_naissance"] = date_match.group(1)
-                                        break
-                                
-                                beneficiaires.append(beneficiaire)
+                        
+                        # Extraire et normaliser la date de naissance si disponible
+                        if date_naissance:
+                            date_naissance = re.sub(r'[\/\-\.]', '/', date_naissance)
+                            # Valider le format de date
+                            if re.match(r'\d{2}/\d{2}/\d{4}', date_naissance) or re.match(r'\d{4}/\d{4}', date_naissance):
+                                beneficiaire["date_naissance"] = date_naissance
+                        
+                        # Éviter les doublons
+                        if not any(b["nom"] == beneficiaire["nom"] and b["prenom"] == beneficiaire["prenom"] for b in beneficiaires):
+                            beneficiaires.append(beneficiaire)
         
-        # Si aucun bénéficiaire trouvé mais on voit le nom dans le texte
-        if not beneficiaires and "MERLY MARIE CLAU" in text:
-            # Recherche directe du nom et date
-            direct_pattern = r'MERLY\s+MARIE\s+CLAU.*?(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
-            direct_match = re.search(direct_pattern, text, re.DOTALL | re.IGNORECASE)
-            if direct_match:
-                beneficiaires.append({
-                    "nom": "MERLY",
-                    "prenom": "MARIE CLAU",
-                    "date_naissance": direct_match.group(1)
-                })
+        # Recherche spécifique pour les formats de date YYYY/YYYY (comme 2020/1988)
+        year_pattern = r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)\s+(\d{4}/\d{4})'
+        year_matches = re.finditer(year_pattern, text, re.IGNORECASE)
+        for match in year_matches:
+            full_name = match.group(1).strip()
+            year_range = match.group(2).strip()
+            
+            # Nettoyer le nom
+            full_name = re.sub(r'\b(R|N|RN|Typ|Conv|CSR|INSEE|AMC|STS|VM)\b', '', full_name)
+            full_name = re.sub(r'\s{2,}', ' ', full_name).strip()
+            
+            if len(full_name) < 3:
+                continue
+                
+            name_parts = full_name.split()
+            if len(name_parts) >= 2:
+                beneficiaire = {
+                    "nom": name_parts[0],
+                    "prenom": " ".join(name_parts[1:]),
+                    "date_naissance": year_range  # Garder le format original
+                }
+                
+                if not any(b["nom"] == beneficiaire["nom"] and b["prenom"] == beneficiaire["prenom"] for b in beneficiaires):
+                    beneficiaires.append(beneficiaire)
         
         return beneficiaires
 
@@ -527,6 +664,10 @@ def main():
     """Main function to run as a standalone script"""
     import sys
     
+    debug_mode = "--debug" in sys.argv
+    if debug_mode:
+        sys.argv.remove("--debug")
+    
     if len(sys.argv) > 1:
         input_file = sys.argv[1]
     else:
@@ -539,11 +680,11 @@ def main():
                 break
         
         if not input_file:
-            print("Usage: python script.py <file_path>")
+            print("Usage: python script.py [--debug] <file_path>")
             print("Or place a file named 'mutuelle.pdf' in the current directory")
             return
     
-    processor = GeneralizedOCRProcessor(lang='fr')
+    processor = GeneralizedOCRProcessor(lang='fr', debug=debug_mode)
     
     try:
         result = processor.process_file(input_file)
@@ -553,6 +694,6 @@ def main():
         print(json.dumps(error_result, indent=2, ensure_ascii=False))
         import traceback
         logger.error(traceback.format_exc())
-
+        
 if __name__ == "__main__":
     main()
