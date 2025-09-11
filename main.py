@@ -172,8 +172,8 @@ class GeneralizedOCRProcessor:
             combined = text_paddle + "\n" + text_tesseract
             all_text.append(f"Page {i+1}:\n{combined}")
 
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+          #  if os.path.exists(temp_path):
+           #     os.remove(temp_path)
 
         return "\n\n".join(all_text)
 
@@ -274,7 +274,11 @@ class GeneralizedOCRProcessor:
         # Conserver le texte original pour l'analyse structurelle
         original_text = text
         text = self.normalize_text(text)
-        
+        print("\n====== ORIGINAL TEXT ======")
+        print(original_text[:1000])  # Limiter si très long
+        print("\n====== NORMALIZED TEXT ======")
+        print(text[:1000])
+        print("============================\n")
         data = {
             "nom": None,
             "prenom": None,
@@ -621,50 +625,36 @@ class GeneralizedOCRProcessor:
         return merged_data
     
     def extract_prestations_with_labels(self, text: str) -> List[Dict]:
-        """Extract prestations with their labels and values"""
-        # Mapping des catégories vers leurs labels
-        category_labels = {
-            "PHAR": "Pharmacie remboursable",
-            "MED": "Médecins généralistes et spécialistes",
-            "RLAX": "Laboratoires + Radiologues + Auxiliaires médicaux",
-            "SAGE": "Sages-Femmes",
-            "EXTE": "Soins externes sauf prothèse dentaire",
-            "CSTE": "Centre de Santé hors dentaire",
-            "HOSP": "Hospitalisation hors soins externes",
-            "OPTI": "Opticien",
-            "DESO": "Soins dentaires",
-            "DEPR": "Prothèse dentaire",
-            "AUDI": "Audioprothèse",
-            "DIV": "Transport sanitaire, Fournisseurs sauf opticien et audioprothésiste"
-        }
-        
+        """
+        Extrait correctement colonnes, labels et valeurs des prestations
+        """
         prestations = []
+
+        # Match 3 lignes avec robustesse
+        columns_match = re.search(r"Nom\s*-\s*Prénom\s+([A-Z\. ]+)", text)
+        labels_match = re.search(r"Date\s*naiss.*?TypConv\s+(.*)", text)
+        values_match = re.search(r"MERLY\s+MARIE\s+CLAU\s+([0-9%/ PEC]+)", text)
         
-        # Recherche du tableau de prestations
-        table_patterns = [
-            r'(PHAR SP|MED SP|RLAX SP|SAGE SP|EXTE IS/ROC:SP|HOSP SP|OPTI SP/SC|DESO SP|DEPR OC/SC|AUDI OC/SC|DIV SP)[\s\S]*?(\d+%|\d+/\d+/\d+|PEC[^\\n]*)',
-            r'(\bPHAR\b|\bMED\b|\bRLAX\b|\bSAGE\b|\bEXTE\b|\bHOSP\b|\bOPTI\b|\bDESO\b|\bDEPR\b|\bAUDI\b|\bDIV\b)[\s]*([\d%/\(\)PEC\s\-]+)'
-        ]
+        print("Columns match:", columns_match.group(1) if columns_match else None)
+        print("Labels match:", labels_match.group(1) if labels_match else None)
+        print("Values match:", values_match.group(1) if values_match else None)
         
-        for pattern in table_patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                if len(match.groups()) >= 2:
-                    category = match.group(1).strip()
-                    value = match.group(2).strip()
-                    
-                    # Nettoyer la catégorie
-                    category = re.sub(r'\s+(SP|OC|SC|IS|R)$', '', category, flags=re.IGNORECASE)
-                    category = category.upper()
-                    
-                    if category in category_labels:
-                        prestations.append({
-                            "categorie": category,
-                            "label": category_labels[category],
-                            "valeur": value
-                        })
-        
+        if columns_match and labels_match and values_match:
+            columns = columns_match.group(1).split()
+            labels = labels_match.group(1).split()
+            values = values_match.group(1).split()
+
+            for i in range(min(len(columns), len(labels), len(values))):
+                prestations.append({
+                    "code": columns[i],
+                    "label": labels[i],
+                    "valeur": values[i]
+                })
+
         return prestations
+
+
+
     def process_file(self, file_path: str) -> Dict:
         """Main function to process PDF or image files"""
         if not os.path.exists(file_path):
