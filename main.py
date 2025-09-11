@@ -293,7 +293,7 @@ class GeneralizedOCRProcessor:
         }
         
         # Extract table data
-        data["prestations"] = self.extract_table_data(original_text)
+        data["prestations"] = self.extract_prestations_with_labels(original_text)
         
         # Extraction des bénéficiaires
         data["beneficiaires"] = self.extract_beneficiaires(original_text)
@@ -610,9 +610,61 @@ class GeneralizedOCRProcessor:
         # Update extraction method
         if ner_data:
             merged_data["extraction_method"] = "generalized_regex+ner"
-        
+    # Ajouter les prestations à chaque bénéficiaire
+        if "beneficiaires" in merged_data and "prestations" in merged_data:
+            for beneficiaire in merged_data["beneficiaires"]:
+                beneficiaire["prestations"] = merged_data["prestations"]
+            
+            # Supprimer le champ prestations racine
+            del merged_data["prestations"] 
+                   
         return merged_data
-
+    
+    def extract_prestations_with_labels(self, text: str) -> List[Dict]:
+        """Extract prestations with their labels and values"""
+        # Mapping des catégories vers leurs labels
+        category_labels = {
+            "PHAR": "Pharmacie remboursable",
+            "MED": "Médecins généralistes et spécialistes",
+            "RLAX": "Laboratoires + Radiologues + Auxiliaires médicaux",
+            "SAGE": "Sages-Femmes",
+            "EXTE": "Soins externes sauf prothèse dentaire",
+            "CSTE": "Centre de Santé hors dentaire",
+            "HOSP": "Hospitalisation hors soins externes",
+            "OPTI": "Opticien",
+            "DESO": "Soins dentaires",
+            "DEPR": "Prothèse dentaire",
+            "AUDI": "Audioprothèse",
+            "DIV": "Transport sanitaire, Fournisseurs sauf opticien et audioprothésiste"
+        }
+        
+        prestations = []
+        
+        # Recherche du tableau de prestations
+        table_patterns = [
+            r'(PHAR SP|MED SP|RLAX SP|SAGE SP|EXTE IS/ROC:SP|HOSP SP|OPTI SP/SC|DESO SP|DEPR OC/SC|AUDI OC/SC|DIV SP)[\s\S]*?(\d+%|\d+/\d+/\d+|PEC[^\\n]*)',
+            r'(\bPHAR\b|\bMED\b|\bRLAX\b|\bSAGE\b|\bEXTE\b|\bHOSP\b|\bOPTI\b|\bDESO\b|\bDEPR\b|\bAUDI\b|\bDIV\b)[\s]*([\d%/\(\)PEC\s\-]+)'
+        ]
+        
+        for pattern in table_patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                if len(match.groups()) >= 2:
+                    category = match.group(1).strip()
+                    value = match.group(2).strip()
+                    
+                    # Nettoyer la catégorie
+                    category = re.sub(r'\s+(SP|OC|SC|IS|R)$', '', category, flags=re.IGNORECASE)
+                    category = category.upper()
+                    
+                    if category in category_labels:
+                        prestations.append({
+                            "categorie": category,
+                            "label": category_labels[category],
+                            "valeur": value
+                        })
+        
+        return prestations
     def process_file(self, file_path: str) -> Dict:
         """Main function to process PDF or image files"""
         if not os.path.exists(file_path):
@@ -690,10 +742,8 @@ def main():
         result = processor.process_file(input_file)
         print(json.dumps(result, indent=2, ensure_ascii=False))
     except Exception as e:
-        error_result = {"error": str(e)}
-        print(json.dumps(error_result, indent=2, ensure_ascii=False))
-        import traceback
-        logger.error(traceback.format_exc())
+        logger.error(f"Erreur lors du traitement: {e}")
+
         
 if __name__ == "__main__":
     main()
