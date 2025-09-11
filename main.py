@@ -168,13 +168,14 @@ class GeneralizedOCRProcessor:
 
             text_paddle = self.run_paddleocr(temp_path)
             text_tesseract = self.run_tesseract(processed)
-
+         
             combined = text_paddle + "\n" + text_tesseract
             all_text.append(f"Page {i+1}:\n{combined}")
 
           #  if os.path.exists(temp_path):
            #     os.remove(temp_path)
-
+        
+        
         return "\n\n".join(all_text)
 
     def normalize_text(self, text: str) -> str:
@@ -218,56 +219,7 @@ class GeneralizedOCRProcessor:
         
         return text_content.strip()
 
-    def extract_table_data(self, text: str) -> Dict:
-        """Extract table data from the text - version généralisée"""
-        table_data = {}
-        
-        # Catégories de prestations étendues
-        categories = {
-            "PHAR": ["PHAR", "Pharmacie", "Médicaments"],
-            "MED": ["MED", "Médecins", "Consultations"],
-            "RLAX": ["RLAX", "Laboratoires", "Analyses", "Radiologie"],
-            "SVIL": ["SVIL", "Sages-Femmes", "Auxiliaires"],
-            "LABO": ["LABO", "Laboratoire"],
-            "RAID": ["RAID", "Radiologie"],
-            "AUXM": ["AUXM", "Auxiliaires"],
-            "SAGE": ["SAGE", "Sages-Femmes"],
-            "EXTE": ["EXTE", "Soins externes", "Externes"],
-            "CSTE": ["CSTE", "Centre de Santé"],
-            "HOSP": ["HOSP", "Hospitalisation", "Hôpital"],
-            "OPTI": ["OPTI", "Opticien", "Lunettes"],
-            "DESO": ["DESO", "Soins dentaires", "Dentiste"],
-            "DENT": ["DENT", "Dentaire"],
-            "DEPR": ["DEPR", "Prothèse dentaire", "Couronne"],
-            "PROD": ["PROD", "Prothèse dentaire"],
-            "AUDI": ["AUDI", "Audioprothèse", "Audition"],
-            "DIV": ["DIV", "Divers", "Transport", "Fournisseurs"],
-            "TRAN": ["TRAN", "Transport", "Ambulance"],
-            "CURE": ["CURE", "Cure", "Thermal"],
-            "CONG": ["CONG", "Congés"]
-        }
-        
-        # Recherche par catégorie avec patterns flexibles
-        for category, keywords in categories.items():
-            for keyword in keywords:
-                # Pattern flexible pour différents formats
-                patterns = [
-                    rf"{keyword}[:\s]*([\d%/\(\)PEC\s\-]+)",
-                    rf"{keyword}\s+([\d%/\(\)PEC\s\-]+)",
-                    rf"{keyword}[^\S\r\n]*([\d%/\(\)PEC\s\-]+)"
-                ]
-                
-                for pattern in patterns:
-                    matches = re.finditer(pattern, text, re.IGNORECASE)
-                    for match in matches:
-                        coverage = match.group(1).strip()
-                        if coverage and len(coverage) > 1:
-                            # Nettoyer la valeur
-                            coverage = re.sub(r'\s+', ' ', coverage)
-                            table_data[category] = coverage
-                            break
-        
-        return table_data
+
 
     def extract_info_with_generalized_regex(self, text: str) -> Dict:
         """Extract information using generalized regex patterns"""
@@ -323,9 +275,9 @@ class GeneralizedOCRProcessor:
         
         # Patterns AMC
         amc_patterns = [
-            r'N[°ºoO]\s*AMC\s*[:\-]?\s*(\d{6,})',
-            r'AMC\s*[:\-]?\s*(\d{6,})',
-            r'SV-DRE-TP AMC\s*:\s*(\d{6,})'  # Pour VIAMEDIS
+            r'N[°ºoO]\s*AMC\s*[:\-]?\s*(?:0\s*)?(\d{6,})',
+            r'AMC\s*[:\-]?\s*(?:0\s*)?(\d{6,})',
+            r'SV-DRE-TP AMC\s*:\s*(?:0\s*)?(\d{6,})'  # Pour VIAMEDIS
         ]
         
         # Patterns adhérent
@@ -337,8 +289,8 @@ class GeneralizedOCRProcessor:
         
         # Patterns contrat
         contract_patterns = [
-            r'N[°ºoO]\s*contrat\s*[:\-]?\s*(\d{8,12})',
-            r'Contrat\s*N[°ºoO]\s*(\d{8,12})'
+            r'N[°ºoO]\s*contrat\s*[:\-]?\s*(\d+)',
+            r'Contrat\s*N[°ºoO]\s*(\d+)'
         ]
         
         # Patterns mutuelle
@@ -628,21 +580,27 @@ class GeneralizedOCRProcessor:
         """
         Extrait correctement colonnes, labels et valeurs des prestations
         """
+        
         prestations = []
 
-        # Match 3 lignes avec robustesse
+        # Colonnes (entêtes PHAR, MED, etc.)
         columns_match = re.search(r"Nom\s*-\s*Prénom\s+([A-Z\. ]+)", text)
+
+        # Labels (codes comme SP, OCSC, etc.)
         labels_match = re.search(r"Date\s*naiss.*?TypConv\s+(.*)", text)
-        values_match = re.search(r"MERLY\s+MARIE\s+CLAU\s+([0-9%/ PEC]+)", text)
-        
-        print("Columns match:", columns_match.group(1) if columns_match else None)
-        print("Labels match:", labels_match.group(1) if labels_match else None)
-        print("Values match:", values_match.group(1) if values_match else None)
-        
+
+        # Valeurs (chercher uniquement sur la ligne après le nom/prénom)
+        values_match = re.search(
+            r"(?:\n|\r)[A-ZÉÈÀÂÎÔÛÇ][A-Za-zÉÈÀÂÎÔÛÇa-z\- ]+\s+((?:\d+(?:/\d+)+|\d+%|PEC)(?:\s+(?:\d+(?:/\d+)+|\d+%|PEC))*)",
+            text
+        )
+
         if columns_match and labels_match and values_match:
             columns = columns_match.group(1).split()
             labels = labels_match.group(1).split()
-            values = values_match.group(1).split()
+            values = values_match.group(1).split()  # group(2) = uniquement les valeurs
+            print("columns: " + " ".join(columns) + " | labels: " + " ".join(labels) + " | values: " + " ".join(values))
+
 
             for i in range(min(len(columns), len(labels), len(values))):
                 prestations.append({
@@ -652,7 +610,6 @@ class GeneralizedOCRProcessor:
                 })
 
         return prestations
-
 
 
     def process_file(self, file_path: str) -> Dict:
@@ -687,7 +644,7 @@ class GeneralizedOCRProcessor:
             return {"error": "Could not extract sufficient text from the file"}
         
         logger.info(f"Extracted text length: {len(text)} characters")
-        
+
         # Extract information using regex
         regex_data = self.extract_info_with_generalized_regex(text)
         

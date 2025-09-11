@@ -1,0 +1,20 @@
+
+l D ATTESTATIONDETIERSPAYANT1 mae
+S PLANSANTE 01/01/2025au31/12/2025
+2 e Soins
+sante aS-
+0040173 7 re DROITSENLIGNEOUVERTS-IDB
+NAMC EE Si u
+/TypConvvoircolonnesCSR ee AssurprincipalAMCMERLYMARIECLAU
+Nadherent20222441 Tees
+RD Ncontrat0000000000177056
+Beneficiaire(s)du tiers payant Depensesdesanteconcerneesparletierspayant()
+Nom-Prenom PHAR MEDRLAXSAGEEXTECSTEHOSPOPTIDESODEPRAUDI-DIV
+Datenaiss Rang NINSEE TypConv SP SP SP SP IS/ROC-SP SPOC/ROCSPSP/SC SP OC/SC OC/SC SP
+MERLYMARIECLAU 100/100/100100%100%100%100%100%PECPEC100%PECPEC100%
+18/07/1963 1 263075960622513 (1) (1/4) (2) (1/4)(1/4) (2)
+()Regledecaicul02AMtRC%TR-MRO (1)Fairevotredemandedepriseencharge4ladresseindiqueeauverso Important
+Q DaosjeecersLo (3) Aecorddarerrental - ()
+Dur Cee SANTECLAIRSeuleses depensesavec
+enmsnisFRARCANS enchargeparSPsant
+
