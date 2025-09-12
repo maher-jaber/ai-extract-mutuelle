@@ -10,6 +10,8 @@ import os
 from typing import Dict, Optional, Union, List
 import numpy as np
 from pathlib import Path
+import easyocr
+
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -17,11 +19,12 @@ logger = logging.getLogger(__name__)
 class GeneralizedOCRProcessor:
     def __init__(self, lang='fr', debug=False):
         """Initialise OCR + NER"""
-        self.ocr = PaddleOCR(use_textline_orientation=True, lang=lang)
+        self.ocr = PaddleOCR(use_angle_cls=True, lang=lang)
         self.ner_pipeline = None
         self.mutuelle_patterns = self._initialize_mutuelle_patterns() 
         self.debug = debug
-                
+        self.easyocr_reader = easyocr.Reader(['fr', 'en'], gpu=False)
+               
         try:
             from transformers import pipeline
             try:
@@ -85,29 +88,39 @@ class GeneralizedOCRProcessor:
         return None
 
     def run_paddleocr(self, img_path: str) -> str:
-        # Utilisez predict() au lieu de ocr()
-        result = self.ocr.predict(img_path)
-        text_parts = []
-        if result and result[0]:
-            for line in result[0]:
-                try:
-                    # La structure a changé dans la nouvelle version
-                    if isinstance(line, list) and len(line) >= 2:
-                        txt, conf = line[1]
-                        if conf > 0.5:
-                            text_parts.append(txt)
-                    elif isinstance(line, dict):
-                        # Nouveau format possible
-                        if 'text' in line and 'confidence' in line and line['confidence'] > 0.5:
-                            text_parts.append(line['text'])
-                except Exception as e:
-                    logger.warning(f"PaddleOCR line parse failed: {line} ({e})")
-                    continue
-        return " ".join(text_parts).strip()
+        """Exécuter PaddleOCR (nouvelle API)"""        
+        try:
+            result = self.ocr.predict(img_path)  # plus de cls=True ici
+            text_parts = []
+
+            if result and len(result) > 0:
+                for line in result[0]:
+                    try:
+                        # Format typique : [[box], (text, conf)]
+                        if isinstance(line, list) and len(line) >= 2:
+                            txt, conf = line[1]
+                            if conf > 0.5:
+                                text_parts.append(txt)
+                        elif isinstance(line, dict):  
+                            if line.get("confidence", 0) > 0.5:
+                                text_parts.append(line.get("text", ""))
+                    except Exception as e:
+                        logger.warning(f"PaddleOCR line parse failed: {line} ({e})")
+                        continue
+
+            return " ".join(text_parts).strip()
+
+        except Exception as e:
+            logger.error(f"PaddleOCR failed: {e}")
+            return ""
+
 
     def run_tesseract(self, img: np.ndarray) -> str:
         """OCR avec Tesseract"""
-        return pytesseract.image_to_string(img, lang="fra+eng")
+        custom_config = r"--oem 3 --psm 6"
+        text = pytesseract.image_to_string(img, lang="fra+eng", config=custom_config)
+
+        return text
 
     def ocr_from_image(self, image_path: str) -> str:
         """OCR hybride PaddleOCR + Tesseract"""
@@ -148,17 +161,25 @@ class GeneralizedOCRProcessor:
                 f.write(combined)
         
         return combined.strip()
-
+    
+    def run_easyocr(self, img):
+        """OCR avec EasyOCR"""
+        result = self.easyocr_reader.readtext(img)
+        lines = [text for _, text, _ in result]
+        return "\n".join(lines)
+    
     def ocr_from_pdf(self, pdf_path: str) -> str:
-        """OCR hybride sur PDF multipages"""
+        """OCR hybride sur PDF multipages avec Paddle + Tesseract + EasyOCR"""
         doc = fitz.open(pdf_path)
         all_text = []
+
         for i, page in enumerate(doc):
             pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))  # 144 DPI
             img = np.frombuffer(pix.tobytes("png"), np.uint8)
             img = cv2.imdecode(img, cv2.IMREAD_COLOR)
             if img is None:
                 continue
+
             processed = self.preprocess_image(img)
             if processed is None:
                 continue
@@ -166,18 +187,20 @@ class GeneralizedOCRProcessor:
             temp_path = f"temp_page_{i+1}.png"
             cv2.imwrite(temp_path, processed)
 
+            # OCR
             text_paddle = self.run_paddleocr(temp_path)
             text_tesseract = self.run_tesseract(processed)
-         
-            combined = text_paddle + "\n" + text_tesseract
+            text_easyocr = self.run_easyocr(temp_path)
+
+            combined = "\n".join([text_paddle, text_tesseract, text_easyocr])
             all_text.append(f"Page {i+1}:\n{combined}")
+            
+            # Nettoyage du fichier temporaire
+            #  if os.path.exists(temp_path):
+            #  os.remove(temp_path)
 
-          #  if os.path.exists(temp_path):
-           #     os.remove(temp_path)
-        
-        
         return "\n\n".join(all_text)
-
+    
     def normalize_text(self, text: str) -> str:
         """Nettoyage agressif du texte OCR"""
         text = text.replace("\n", " ")
@@ -227,9 +250,7 @@ class GeneralizedOCRProcessor:
         original_text = text
         text = self.normalize_text(text)
         print("\n====== ORIGINAL TEXT ======")
-        print(original_text[:1000])  # Limiter si très long
-        print("\n====== NORMALIZED TEXT ======")
-        print(text[:1000])
+        print(original_text)  # Limiter si très long
         print("============================\n")
         data = {
             "nom": None,
@@ -269,8 +290,8 @@ class GeneralizedOCRProcessor:
         
         # Patterns pour la sécurité sociale
         ssn_patterns = [
-            r'N° INSEE\s*[:\-]?\s*([\d\s]{13,20})',
-            r'\b([12]\s?\d{2}\s?\d{2}\s?\d{2}\s?\d{3}\s?\d{3}\s?\d{2})\b',
+            r'N°\s*INSEE\s*[:\-]?\s*([\d\s\.]{13,25})',
+            r'\b([12][\s\.]?\d{2}[\s\.]?\d{2}[\s\.]?\d{2}[\s\.]?\d{3}[\s\.]?\d{3}[\s\.]?\d{2})\b',
         ]
         
         # Patterns AMC
@@ -316,8 +337,9 @@ class GeneralizedOCRProcessor:
         for pattern in ssn_patterns:
             matches = re.finditer(pattern, original_text, re.IGNORECASE)
             for match in matches:
-                ssn = re.sub(r'\s+', '', match.group(1))
-                if len(ssn) >= 13 and ssn.isdigit():
+                # Supprimer espaces, points et tout sauf chiffres
+                ssn = re.sub(r'[^0-9]', '', match.group(1))
+                if len(ssn) == 15:  # Numéro de sécu = 15 chiffres
                     data["numero_securite_sociale"] = ssn
                     break
         
@@ -467,19 +489,19 @@ class GeneralizedOCRProcessor:
         # Patterns multiples pour différentes structures de documents
         patterns = [
             # Pattern 1: Structure tabulaire classique (PLANSANTE, SOGAREP)
-            r'(?:Nom[-\s]*Prénom|Bénéficiaire)[:\s]*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)[\r\n]+\s*(?:Date\s*naiss[ée]|Date)[:\s]*([\d\/\.-]+)',
+            #r'(?:Nom[-\s]*Prénom|Bénéficiaire)[:\s]*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)[\r\n]+\s*(?:Date\s*naiss[ée]|Date)[:\s]*([\d\/\.-]+)',
             
             # Pattern 2: Format VIAMEDIS/ROEDERER avec nom complet et date
-            r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{3,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
+           # r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{3,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
             
             # Pattern 3: Format avec nom et date sur la même ligne
-            r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
+           # r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
             
             # Pattern 4: Format avec nom complet suivi de date
-            r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{5,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
+            #r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{5,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
             
             # Pattern 5: Format avec nom dans une table
-            r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}',
+            #r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}',
             
             # Pattern 6: Assuré principal avec date
             r'Assuré[^\n]*:\s*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)[\s\S]*?(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
@@ -578,38 +600,52 @@ class GeneralizedOCRProcessor:
     
     def extract_prestations_with_labels(self, text: str) -> List[Dict]:
         """
-        Extrait correctement colonnes, labels et valeurs des prestations
+        Extrait colonnes, labels, valeurs et descriptions des prestations pour chaque bénéficiaire.
         """
-        
         prestations = []
 
-        # Colonnes (entêtes PHAR, MED, etc.)
+        # --- Extraire colonnes (entêtes) ---
         columns_match = re.search(r"Nom\s*-\s*Prénom\s+([A-Z\. ]+)", text)
+        columns = columns_match.group(1).split() if columns_match else []
 
-        # Labels (codes comme SP, OCSC, etc.)
+        # --- Extraire labels (codes SP, PEC, etc.) ---
         labels_match = re.search(r"Date\s*naiss.*?TypConv\s+(.*)", text)
+        labels = labels_match.group(1).split() if labels_match else []
 
-        # Valeurs (chercher uniquement sur la ligne après le nom/prénom)
+        # --- Extraire valeurs ---
         values_match = re.search(
-            r"(?:\n|\r)[A-ZÉÈÀÂÎÔÛÇ][A-Za-zÉÈÀÂÎÔÛÇa-z\- ]+\s+((?:\d+(?:/\d+)+|\d+%|PEC)(?:\s+(?:\d+(?:/\d+)+|\d+%|PEC))*)",
+            r"(?:\n|\r)([A-ZÉÈÀÂÎÔÛÇ][A-Za-zÉÈÀÂÎÔÛÇa-z\- ]+)\s+((?:\d+(?:/\d+)+|\d+%|PEC)(?:\s+(?:\d+(?:/\d+)+|\d+%|PEC))*)",
             text
         )
+        
+        values = []
+        if values_match:
+            values_line = values_match.group(2).split()
+            for v in values_line:
+                if re.match(r"100/100/0{2}$", v):
+                    v = "100/100/100"
+                values.append(v)
 
-        if columns_match and labels_match and values_match:
-            columns = columns_match.group(1).split()
-            labels = labels_match.group(1).split()
-            values = values_match.group(1).split()  # group(2) = uniquement les valeurs
-            print("columns: " + " ".join(columns) + " | labels: " + " ".join(labels) + " | values: " + " ".join(values))
+        # --- Extraire les descriptions des codes ---
+        # On prend la partie "Signification de la codification"
+        description_matches = re.findall(r"([A-Z]{3,4})\s+([^\n]+)", text)
+        description_map = {code: desc.strip() for code, desc in description_matches}
 
-
-            for i in range(min(len(columns), len(labels), len(values))):
-                prestations.append({
-                    "code": columns[i],
-                    "label": labels[i],
-                    "valeur": values[i]
-                })
+        # --- Construire le résultat final ---
+        for i in range(min(len(columns), len(labels), len(values))):
+            code = columns[i]
+            label = labels[i]
+            valeur = values[i]
+            description = description_map.get(code, "")
+            prestations.append({
+                "code": code,
+                "label": label,
+                "valeur": valeur,
+                "description": description
+            })
 
         return prestations
+
 
 
     def process_file(self, file_path: str) -> Dict:

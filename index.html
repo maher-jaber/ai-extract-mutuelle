@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR Processor - Traitement de Documents Mutuelle</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3a0ca3;
+            --success: #4cc9f0;
+            --warning: #f72585;
+            --light: #f8f9fa;
+            --dark: #212529;
+            --gray: #6c757d;
+            --light-gray: #e9ecef;
+            --border-radius: 12px;
+            --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        .dark-mode {
+            --primary: #4cc9f0;
+            --secondary: #4361ee;
+            --light: #121212;
+            --dark: #f8f9fa;
+            --gray: #adb5bd;
+            --light-gray: #2d2d2d;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--light);
+            color: var(--dark);
+            transition: var(--transition);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 0;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--light-gray);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo i {
+            font-size: 2.5rem;
+            color: var(--primary);
+        }
+
+        .logo h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .theme-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 30px;
+        }
+
+        .theme-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--light-gray);
+            transition: var(--transition);
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: var(--transition);
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(30px);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        @media (max-width: 900px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .upload-section {
+            background: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            transition: var(--transition);
+        }
+
+        .dark-mode .upload-section {
+            background: var(--light-gray);
+        }
+
+        .upload-area {
+            border: 2px dashed var(--primary);
+            border-radius: var(--border-radius);
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover {
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+
+        .upload-area i {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 15px;
+        }
+
+        .upload-area h3 {
+            margin-bottom: 10px;
+            color: var(--dark);
+        }
+
+        .upload-area p {
+            color: var(--gray);
+            margin-bottom: 15px;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .results-section {
+            background: white;
+            padding: 30px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            transition: var(--transition);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .dark-mode .results-section {
+            background: var(--light-gray);
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--light-gray);
+            color: var(--dark);
+        }
+
+        .result-placeholder {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--gray);
+        }
+
+        .result-placeholder i {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: var(--light-gray);
+        }
+
+        .document-card {
+            background: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            margin-bottom: 20px;
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .dark-mode .document-card {
+            background: var(--dark);
+        }
+
+        .document-header {
+            padding: 15px 20px;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .document-body {
+            padding: 20px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .info-item {
+            margin-bottom: 15px;
+        }
+
+        .info-label {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .dark-mode .info-value {
+            color: var(--light);
+        }
+
+        .beneficiaries-section {
+            margin-top: 25px;
+        }
+
+        .beneficiary-item {
+            background: var(--light-gray);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .dark-mode .beneficiary-item {
+            background: #2d2d2d;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--light-gray);
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab.active {
+            border-bottom: 3px solid var(--primary);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .prestation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .prestation-card {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: var(--transition);
+        }
+
+        .dark-mode .prestation-card {
+            background: #2d2d2d;
+        }
+
+        .prestation-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .prestation-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: var(--primary);
+        }
+
+        .prestation-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .dark-mode .prestation-value {
+            color: var(--light);
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 30px;
+        }
+
+        .loading i {
+            font-size: 2rem;
+            color: var(--primary);
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .history-section {
+            margin-top: 40px;
+        }
+
+        .history-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            background: var(--dark);
+            color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: #4caf50;
+        }
+
+        .toast.error {
+            background: #f44336;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px 0;
+            margin-top: 50px;
+            color: var(--gray);
+            border-top: 1px solid var(--light-gray);
+        }
+
+       
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-file-medical-alt"></i>
+                <h1>OCR Processor</h1>
+            </div>
+            <label class="theme-switch">
+                <input type="checkbox" id="theme-toggle">
+                <span class="slider"></span>
+            </label>
+        </header>
+
+        <div class="main-content">
+            <div class="upload-section">
+                <h2 class="section-title">Nouveau Document</h2>
+                <div class="upload-area" id="drop-zone">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <h3>Glissez-déposez votre fichier ici</h3>
+                    <p>ou</p>
+                    <button class="btn" id="browse-btn">Parcourir les fichiers</button>
+                    <input type="file" id="file-input" class="file-input" accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp">
+                </div>
+                <div class="supported-formats">
+                    <p>Formats supportés: PDF, PNG, JPG, JPEG, TIFF, BMP</p>
+                </div>
+
+                <div class="loading" id="loading">
+                    <i class="fas fa-spinner"></i>
+                    <p>Traitement du document en cours...</p>
+                </div>
+            </div>
+
+            <div class="results-section">
+                <h2 class="section-title">Résultats</h2>
+                <div class="tabs">
+                    <div class="tab active" data-tab="extracted">Informations Extraites</div>
+                    <div class="tab" data-tab="raw">Texte Brut</div>
+                </div>
+
+                <div class="tab-content active" id="extracted-tab">
+                    <div class="result-placeholder" id="result-placeholder">
+                        <i class="fas fa-file-alt"></i>
+                        <p>Aucun document traité. Uploader un fichier pour commencer.</p>
+                    </div>
+
+                    <div id="extracted-results" style="display: none;">
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <div class="info-label">Mutuelle</div>
+                                <div class="info-value" id="mutuelle-value">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Nom</div>
+                                <div class="info-value" id="nom-value">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Prénom</div>
+                                <div class="info-value" id="prenom-value">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Numéro de Sécurité Sociale</div>
+                                <div class="info-value" id="nss-value">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Numéro de Contrat</div>
+                                <div class="info-value" id="contrat-value">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Date de Naissance</div>
+                                <div class="info-value" id="naissance-value">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Numéro Adhérent</div>
+                                <div class="info-value" id="adherent-value">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Numéro AMC</div>
+                                <div class="info-value" id="amc-value">-</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Période de Validité</div>
+                                <div class="info-value" id="validite-value">-</div>
+                            </div>
+                        </div>
+
+                        <div class="beneficiaries-section">
+                            <h3>Bénéficiaires</h3>
+                            <div id="beneficiaires-list"></div>
+                        </div>
+
+                        <div class="prestations-section">
+                            <h3>Prestations</h3>
+                            <div class="prestation-grid" id="prestations-grid"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="raw-tab">
+                    <div class="result-placeholder">
+                        <i class="fas fa-align-left"></i>
+                        <p>Aucun texte brut à afficher</p>
+                    </div>
+                    <pre id="raw-text" style="display: none;"></pre>
+                </div>
+            </div>
+        </div>
+
+        <div class="history-section">
+            <h2 class="section-title">Historique des Documents</h2>
+            <div class="history-list" id="history-list">
+                <div class="document-card">
+                    <div class="document-header">
+                        <h4>Document Example</h4>
+                        <span>12/05/2023</span>
+                    </div>
+                    <div class="document-body">
+                        <p>Aucun historique pour le moment. Les documents traités apparaîtront ici.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>OCR Processor &copy; 2023 - Traitement de documents mutuelle</p>
+        </footer>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // Éléments DOM
+        const themeToggle = document.getElementById('theme-toggle');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const browseBtn = document.getElementById('browse-btn');
+        const loading = document.getElementById('loading');
+        const resultPlaceholder = document.getElementById('result-placeholder');
+        const extractedResults = document.getElementById('extracted-results');
+        const rawText = document.getElementById('raw-text');
+        const tabs = document.querySelectorAll('.tab');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const toast = document.getElementById('toast');
+
+        // Basculer entre les modes clair/sombre
+        themeToggle.addEventListener('change', () => {
+            document.body.classList.toggle('dark-mode');
+        });
+
+        // Gérer les onglets
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.getAttribute('data-tab');
+
+                tabs.forEach(t => t.classList.remove('active'));
+                tabContents.forEach(tc => tc.classList.remove('active'));
+
+                tab.classList.add('active');
+                document.getElementById(`${tabId}-tab`).classList.add('active');
+            });
+        });
+
+        // Gérer le glisser-déposer
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        function highlight() {
+            dropZone.style.borderColor = '#4361ee';
+            dropZone.style.backgroundColor = 'rgba(67, 97, 238, 0.1)';
+        }
+
+        function unhighlight() {
+            dropZone.style.borderColor = '';
+            dropZone.style.backgroundColor = '';
+        }
+
+        dropZone.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles(files);
+        }
+
+        browseBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', () => {
+            handleFiles(fileInput.files);
+        });
+
+        // Fonction pour gérer les fichiers uploadés
+        function handleFiles(files) {
+            if (files.length === 0) return;
+
+            const file = files[0];
+            const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/tiff', 'image/bmp'];
+
+            if (!validTypes.includes(file.type)) {
+                showToast('Format de fichier non supporté', 'error');
+                return;
+            }
+
+            // Simuler le traitement OCR (à remplacer par un appel API réel)
+            processFile(file);
+        }
+
+        // Fonction pour simuler le traitement OCR
+        function processFile(file) {
+            loading.style.display = 'block';
+            resultPlaceholder.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('https://eedd366cbd79.ngrok-free.app:5000/api/process', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    loading.style.display = 'none';
+
+                    if (data.error) {
+                        showToast('Erreur: ' + data.error, 'error');
+                        return;
+                    }
+
+                    displayResults(data);
+                    showToast('Document traité avec succès', 'success');
+                })
+                .catch(error => {
+                    loading.style.display = 'none';
+                    console.error('Error:', error);
+                    showToast('Erreur de connexion au serveur', 'error');
+                });
+        }
+
+        // Afficher les résultats
+        function displayResults(data) {
+            console.log("Données reçues:", data); // Pour debug
+
+            // Afficher les informations extraites
+            document.getElementById('mutuelle-value').textContent = data.mutuelle || '-';
+            document.getElementById('nom-value').textContent = data.nom || '-';
+            document.getElementById('prenom-value').textContent = data.prenom || '-';
+            document.getElementById('nss-value').textContent = data.numero_securite_sociale || '-';
+            document.getElementById('contrat-value').textContent = data.numero_contrat || '-';
+            document.getElementById('naissance-value').textContent = data.date_naissance || '-';
+            document.getElementById('adherent-value').textContent = data.numero_adherent || '-';
+            document.getElementById('amc-value').textContent = data.numero_amc || '-';
+
+            // Gérer les dates de validité
+            if (data.date_debut_validite && data.date_fin_validite) {
+                document.getElementById('validite-value').textContent = `${data.date_debut_validite} - ${data.date_fin_validite}`;
+            } else {
+                document.getElementById('validite-value').textContent = '-';
+            }
+
+            // Afficher les bénéficiaires AVEC leurs prestations
+            const beneficiairesList = document.getElementById('beneficiaires-list');
+            beneficiairesList.innerHTML = '';
+
+            // Vérifier si data.beneficiaires existe et est un tableau
+            if (data.beneficiaires && Array.isArray(data.beneficiaires)) {
+                data.beneficiaires.forEach(benef => {
+                    const benefItem = document.createElement('div');
+                    benefItem.className = 'beneficiary-item';
+
+                    // Informations du bénéficiaire
+                    let benefHTML = `
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">Nom</div>
+                        <div class="info-value">${benef.nom || '-'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Prénom</div>
+                        <div class="info-value">${benef.prenom || '-'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">Date de naissance</div>
+                        <div class="info-value">${benef.date_naissance || '-'}</div>
+                    </div>
+                </div>
+            `;
+
+                    // Ajouter les prestations si elles existent
+                    if (benef.prestations && Array.isArray(benef.prestations) && benef.prestations.length > 0) {
+                        benefHTML += `
+                    <div class="prestations-container">
+                        <h4>Prestations:</h4>
+                        <div class="prestation-grid">
+                `;
+
+                        benef.prestations.forEach(prestation => {
+                            benefHTML += `
+                        <div class="prestation-card">
+                            <div class="prestation-title">${prestation.code || 'Prestation'}</div>
+                            <div class="prestation-value">${prestation.valeur || '-'}</div>
+                            <div class="info-label">${prestation.label || ''}</div>
+                            <div class="info-label">${prestation.description || ''}</div>
+                        </div>
+                    `;
+                        });
+
+                        benefHTML += `
+                        </div>
+                    </div>
+                `;
+                    }
+
+                    benefItem.innerHTML = benefHTML;
+                    beneficiairesList.appendChild(benefItem);
+                });
+            } else {
+                beneficiairesList.innerHTML = '<p>Aucun bénéficiaire trouvé</p>';
+            }
+
+            // Afficher le texte brut
+            document.getElementById('raw-text').textContent = data.raw_text_preview || 'Aucun texte extrait';
+
+            // Afficher les résultats
+            resultPlaceholder.style.display = 'none';
+            extractedResults.style.display = 'block';
+            rawText.style.display = 'block';
+        }
+
+        // Fonction pour afficher les notifications
+        function showToast(message, type = 'default') {
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+
+            setTimeout(() => {
+                toast.className = toast.className.replace('show', '');
+            }, 3000);
+        }
+    </script>
+</body>
+
+</html>
