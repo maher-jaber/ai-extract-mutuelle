@@ -483,126 +483,66 @@ class GeneralizedOCRProcessor:
         return extracted_data
 
     def extract_beneficiaires(self, text: str) -> list:
-        """Extract all beneficiaries from the text - version améliorée"""
         beneficiaires = []
-        
-        # Patterns multiples pour différentes structures de documents
-        patterns = [
-            # Pattern 1: Structure tabulaire classique (PLANSANTE, SOGAREP)
-            #r'(?:Nom[-\s]*Prénom|Bénéficiaire)[:\s]*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)[\r\n]+\s*(?:Date\s*naiss[ée]|Date)[:\s]*([\d\/\.-]+)',
-            
-            # Pattern 2: Format VIAMEDIS/ROEDERER avec nom complet et date
-           # r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{3,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
-            
-            # Pattern 3: Format avec nom et date sur la même ligne
-           # r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
-            
-            # Pattern 4: Format avec nom complet suivi de date
-            #r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{5,})\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})',
-            
-            # Pattern 5: Format avec nom dans une table
-            #r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,})\s+\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4}',
-            
-            # Pattern 6: Assuré principal avec date
-            r'Assuré[^\n]*:\s*([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)[\s\S]*?(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
-        ]
-        
-        for pattern in patterns:
-            matches = re.finditer(pattern, text, re.IGNORECASE)
-            for match in matches:
-                if match.groups():
-                    full_name = ""
-                    date_naissance = None
-                    
-                    if len(match.groups()) >= 2:
-                        full_name = match.group(1).strip()
-                        date_naissance = match.group(2).strip()
-                    elif len(match.groups()) >= 3:
-                        # Pattern avec nom et prénom séparés
-                        nom = match.group(1).strip()
-                        prenom = match.group(2).strip()
-                        full_name = f"{nom} {prenom}"
-                        date_naissance = match.group(3).strip() if len(match.groups()) >= 3 else None
-                    
-                    # Nettoyer le nom des artefacts OCR
-                    full_name = re.sub(r'\b(R|N|RN|Typ|Conv|CSR|INSEE|AMC|STS|VM|rang|Rang)\b', '', full_name, flags=re.IGNORECASE)
-                    full_name = re.sub(r'\s{2,}', ' ', full_name).strip()
-                    
-                    if len(full_name) < 3:
-                        continue
-                        
-                    name_parts = full_name.split()
-                    if len(name_parts) >= 2:
-                        beneficiaire = {
-                            "nom": name_parts[0],
-                            "prenom": " ".join(name_parts[1:])
-                        }
-                        
-                        # Extraire et normaliser la date de naissance si disponible
-                        if date_naissance:
-                            date_naissance = re.sub(r'[\/\-\.]', '/', date_naissance)
-                            # Valider le format de date
-                            if re.match(r'\d{2}/\d{2}/\d{4}', date_naissance) or re.match(r'\d{4}/\d{4}', date_naissance):
-                                beneficiaire["date_naissance"] = date_naissance
-                        
-                        # Éviter les doublons
-                        if not any(b["nom"] == beneficiaire["nom"] and b["prenom"] == beneficiaire["prenom"] for b in beneficiaires):
-                            beneficiaires.append(beneficiaire)
-        
-        # Recherche spécifique pour les formats de date YYYY/YYYY (comme 2020/1988)
-        year_pattern = r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]+)\s+(\d{4}/\d{4})'
-        year_matches = re.finditer(year_pattern, text, re.IGNORECASE)
-        for match in year_matches:
+
+        # Regex : nom complet en majuscules suivi quelque part de la date
+        pattern = r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{3,})\s+(?:[0-9\/%PEC@() ]+)?\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
+
+        matches = re.finditer(pattern, text, re.MULTILINE)
+
+        for match in matches:
             full_name = match.group(1).strip()
-            year_range = match.group(2).strip()
-            
-            # Nettoyer le nom
-            full_name = re.sub(r'\b(R|N|RN|Typ|Conv|CSR|INSEE|AMC|STS|VM)\b', '', full_name)
-            full_name = re.sub(r'\s{2,}', ' ', full_name).strip()
-            
-            if len(full_name) < 3:
-                continue
-                
-            name_parts = full_name.split()
-            if len(name_parts) >= 2:
+            date_naissance = match.group(2).replace(".", "/").replace("-", "/")
+
+            # Nettoyage du nom (éviter les artefacts)
+            full_name = re.sub(r'\b(PEC|SP|100|%|@\b).*', '', full_name).strip()
+            full_name = re.sub(r'\s{2,}', ' ', full_name)
+
+            if len(full_name.split()) >= 2:
                 beneficiaire = {
-                    "nom": name_parts[0],
-                    "prenom": " ".join(name_parts[1:]),
-                    "date_naissance": year_range  # Garder le format original
+                    "nom": full_name.split()[0],
+                    "prenom": " ".join(full_name.split()[1:]),
+                    "date_naissance": date_naissance
                 }
-                
+
+                # Éviter les doublons
                 if not any(b["nom"] == beneficiaire["nom"] and b["prenom"] == beneficiaire["prenom"] for b in beneficiaires):
                     beneficiaires.append(beneficiaire)
-        
+
         return beneficiaires
 
+
     def merge_extracted_data(self, regex_data: Dict, ner_data: Dict) -> Dict:
-        """Merge data from different extraction methods"""
         merged_data = regex_data.copy()
-        
-        # Use NER data to fill missing fields or validate existing ones
+
+        # Compléter avec NER
         for key, value in ner_data.items():
             if value and (not merged_data.get(key) or key in ["mutuelle"]):
                 merged_data[key] = value
-        
-        # Update extraction method
+
+        # Associer prestations par index
+        if "beneficiaires" in merged_data and "prestations" in merged_data:
+            prestations_list = merged_data["prestations"]
+            for idx, beneficiaire in enumerate(merged_data["beneficiaires"]):
+                if idx < len(prestations_list):
+                    beneficiaire["prestations"] = prestations_list[idx]
+                else:
+                    beneficiaire["prestations"] = []
+
+            del merged_data["prestations"]
+
         if ner_data:
             merged_data["extraction_method"] = "generalized_regex+ner"
-    # Ajouter les prestations à chaque bénéficiaire
-        if "beneficiaires" in merged_data and "prestations" in merged_data:
-            for beneficiaire in merged_data["beneficiaires"]:
-                beneficiaire["prestations"] = merged_data["prestations"]
-            
-            # Supprimer le champ prestations racine
-            del merged_data["prestations"] 
-                   
+
         return merged_data
+
     
-    def extract_prestations_with_labels(self, text: str) -> List[Dict]:
+    def extract_prestations_with_labels(self, text: str) -> List[List[Dict]]:
         """
-        Extrait colonnes, labels, valeurs et descriptions des prestations pour chaque bénéficiaire.
+        Extrait colonnes, labels, valeurs et descriptions pour CHAQUE bénéficiaire.
+        Retourne une liste : [prestations_benef1, prestations_benef2, ...]
         """
-        prestations = []
+        all_prestations = []
 
         # --- Extraire colonnes (entêtes) ---
         columns_match = re.search(r"Nom\s*-\s*Prénom\s+([A-Z\. ]+)", text)
@@ -612,39 +552,35 @@ class GeneralizedOCRProcessor:
         labels_match = re.search(r"Date\s*naiss.*?TypConv\s+(.*)", text)
         labels = labels_match.group(1).split() if labels_match else []
 
-        # --- Extraire valeurs ---
-        values_match = re.search(
-            r"(?:\n|\r)([A-ZÉÈÀÂÎÔÛÇ][A-Za-zÉÈÀÂÎÔÛÇa-z\- ]+)\s+((?:\d+(?:/\d+)+|\d+%|PEC)(?:\s+(?:\d+(?:/\d+)+|\d+%|PEC))*)",
-            text
-        )
-        
-        values = []
-        if values_match:
-            values_line = values_match.group(2).split()
-            for v in values_line:
-                if re.match(r"100/100/0{2}$", v):
-                    v = "100/100/100"
-                values.append(v)
-
-        # --- Extraire les descriptions des codes ---
-        # On prend la partie "Signification de la codification"
+        # --- Extraire descriptions ---
         description_matches = re.findall(r"([A-Z]{3,4})\s+([^\n]+)", text)
         description_map = {code: desc.strip() for code, desc in description_matches}
 
-        # --- Construire le résultat final ---
-        for i in range(min(len(columns), len(labels), len(values))):
-            code = columns[i]
-            label = labels[i]
-            valeur = values[i]
-            description = description_map.get(code, "")
-            prestations.append({
-                "code": code,
-                "label": label,
-                "valeur": valeur,
-                "description": description
-            })
+        # --- Extraire toutes les lignes bénéficiaires avec valeurs ---
+        line_pattern = re.compile(
+            r"(?:\n|\r)([A-ZÉÈÀÂÎÔÛÇ][A-Za-zÉÈÀÂÎÔÛÇa-z\- ]+)\s+((?:\d+(?:/\d+)+|\d+%|PEC)(?:\s+(?:\d+(?:/\d+)+|\d+%|PEC))*)",
+            re.MULTILINE
+        )
 
-        return prestations
+        for match in line_pattern.finditer(text):
+            values_line = match.group(2).split()
+            prestations = []
+
+            for i in range(min(len(columns), len(labels), len(values_line))):
+                code = columns[i]
+                label = labels[i]
+                valeur = values_line[i]
+                description = description_map.get(code, "")
+                prestations.append({
+                    "code": code,
+                    "label": label,
+                    "valeur": valeur,
+                    "description": description
+                })
+
+            all_prestations.append(prestations)
+
+        return all_prestations
 
 
 
