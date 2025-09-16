@@ -248,6 +248,10 @@ class GeneralizedOCRProcessor:
         """Extract information using generalized regex patterns"""
         # Conserver le texte original pour l'analyse structurelle
         original_text = text
+        
+        original_text= self.clean_text_blocks(original_text)
+        original_text= self.merge_beneficiaire_blocks(original_text)
+        
         text = self.normalize_text(text)
         print("\n====== ORIGINAL TEXT ======")
         print(original_text)  # Limiter si très long
@@ -536,21 +540,73 @@ class GeneralizedOCRProcessor:
 
         return merged_data
 
+    def clean_text_blocks(self,text: str) -> str:
+    # Supprimer lignes vides multiples → garder max 1
+        lines = text.splitlines()
+        cleaned = []
+        last_blank = False
+        for line in lines:
+            if line.strip() == "":
+                if not last_blank:
+                    cleaned.append("")  # garder une seule ligne vide
+                last_blank = True
+            else:
+                cleaned.append(line.strip())
+                last_blank = False
+        return "\n".join(cleaned)
+    
+    def merge_beneficiaire_blocks(self,text: str) -> str:
+        
+        lines = text.splitlines()
+        merged = []
+        buffer = ""
+
+        for line in lines:
+            if re.search(r"\d{2}/\d{2}/\d{4}", line):  
+                # ligne avec date → rattacher au bloc précédent
+                buffer += " " + line.strip()
+                merged.append(buffer.strip())
+                buffer = ""
+            elif line.strip():
+                if buffer:
+                    merged.append(buffer.strip())
+                buffer = line.strip()
+            else:
+                if buffer:
+                    merged.append(buffer.strip())
+                    buffer = ""
+        if buffer:
+            merged.append(buffer.strip())
+
+        return "\n".join(merged)
     
     def extract_prestations_with_labels(self, text: str) -> List[List[Dict]]:
         """
         Extrait colonnes, labels, valeurs et descriptions pour CHAQUE bénéficiaire.
         Retourne une liste : [prestations_benef1, prestations_benef2, ...]
         """
+
         all_prestations = []
 
         # --- Extraire colonnes (entêtes) ---
-        columns_match = re.search(r"Nom\s*-\s*Prénom\s+([A-Z\. ]+)", text)
-        columns = columns_match.group(1).split() if columns_match else []
+        columns_match = re.search(r"Nom\s*-\s*Prénom\s+([^\r\n]+)", text)
+        raw_columns = columns_match.group(1).split() if columns_match else []
+
+        # Nettoyer colonnes (supprimer *, ", etc.)
+        columns = [re.sub(r'[^A-Za-zÀ-ÖØ-öø-ÿ0-9]', '', c) for c in raw_columns]
+        columns = [c for c in columns if c]  # enlever les vides
 
         # --- Extraire labels (codes SP, PEC, etc.) ---
-        labels_match = re.search(r"Date\s*naiss.*?TypConv\s+(.*)", text)
-        labels = labels_match.group(1).split() if labels_match else []
+        labels = []
+        date_line_match = re.search(r"^Date\s*(?:naiss|de naissance)[^\r\n]+", text, re.IGNORECASE | re.MULTILINE)
+        if date_line_match:
+            date_line = date_line_match.group(0)
+            # Chercher TypConv ou Typ Conv
+            typconv_match = re.search(r"Typ\s*Conv\s*", date_line, re.IGNORECASE)
+            if typconv_match:
+                start_idx = typconv_match.end()  # tout ce qui suit TypConv ou Typ Conv
+                raw_labels = date_line[start_idx:].split()
+                labels = [re.sub(r'[^A-Za-z0-9/%]', '', l) for l in raw_labels if l.strip()]
 
         # --- Extraire descriptions ---
         description_matches = re.findall(r"([A-Z]{3,4})\s+([^\n]+)", text)
@@ -561,7 +617,13 @@ class GeneralizedOCRProcessor:
             r"(?:\n|\r)([A-ZÉÈÀÂÎÔÛÇ][A-Za-zÉÈÀÂÎÔÛÇa-z\- ]+)\s+((?:\d+(?:/\d+)+|\d+%|PEC)(?:\s+(?:\d+(?:/\d+)+|\d+%|PEC))*)",
             re.MULTILINE
         )
-
+        
+        print("Labels:\n" + "\n".join(labels))
+        print("Colonnes:\n" + "\n".join(columns))
+        print("Descriptions:")
+        for k, v in description_map.items():
+            print(f"  {k} → {v}")
+        
         for match in line_pattern.finditer(text):
             values_line = match.group(2).split()
             prestations = []
@@ -582,6 +644,26 @@ class GeneralizedOCRProcessor:
 
         return all_prestations
 
+    def normalize_beneficiaires(self,text: str) -> str:
+        lines = text.splitlines()
+        merged = []
+        buffer = ""
+        for line in lines:
+            if re.match(r"\d{2}/\d{2}/\d{4}", line.strip()):  # date de naissance
+                buffer += " " + line.strip()
+                merged.append(buffer.strip())
+                buffer = ""
+            elif line.strip():
+                if buffer:
+                    merged.append(buffer.strip())
+                buffer = line.strip()
+            else:
+                if buffer:
+                    merged.append(buffer.strip())
+                    buffer = ""
+        if buffer:
+            merged.append(buffer.strip())
+        return "\n".join(merged)
 
 
     def process_file(self, file_path: str) -> Dict:
@@ -591,7 +673,7 @@ class GeneralizedOCRProcessor:
         
         file_path = Path(file_path)
         file_extension = file_path.suffix.lower()
-        
+
         logger.info(f"Processing file: {file_path}")
         
         text = ""
