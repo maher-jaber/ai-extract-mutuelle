@@ -11,20 +11,28 @@ from typing import Dict, Optional, Union, List
 import numpy as np
 from pathlib import Path
 import easyocr
-
+from difflib import get_close_matches
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class GeneralizedOCRProcessor:
-    def __init__(self, lang='fr', debug=False):
+    def __init__(self, lang='fr', debug=False, codification_path="codification.json"):
         """Initialise OCR + NER"""
         self.ocr = PaddleOCR(use_angle_cls=True, lang=lang)
         self.ner_pipeline = None
         self.mutuelle_patterns = self._initialize_mutuelle_patterns() 
         self.debug = debug
         self.easyocr_reader = easyocr.Reader(['fr', 'en'], gpu=False)
-               
+        self.notes_map = {
+            "1": "Prise en charge à la demande (adresse indiquée au verso)",
+            "2": "Selon les accords locaux",
+            "3": "Accord départemental",
+            "4": "Partenaires Santéclair : PEC sur www.santeclair.fr/ht/sp"
+        }
+        with open(codification_path, "r", encoding="utf-8") as f:
+            self.codification = json.load(f)
+            
         try:
             from transformers import pipeline
             try:
@@ -41,7 +49,6 @@ class GeneralizedOCRProcessor:
             logger.warning(f"NER unavailable: {e}")
   
     def preprocess_image(self, image: Union[str, np.ndarray]) -> Optional[np.ndarray]:
-        """Prétraitement agressif pour améliorer l'OCR"""
         try:
             if isinstance(image, str):
                 img = cv2.imread(image, cv2.IMREAD_GRAYSCALE)
@@ -52,14 +59,25 @@ class GeneralizedOCRProcessor:
                 if len(img.shape) == 3:
                     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-            # Sauvegarder l'image originale en mode debug
+
+
+            # Redimensionnement
+            scale_factor = 2
+            img = cv2.resize(img, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+
+
+            # Morphologie pour renforcer petites parenthèses
+            kernel = np.ones((2,2), np.uint8)
+            img = cv2.dilate(img, kernel, iterations=1)
+
             if self.debug:
-                cv2.imwrite("debug_original.png", img)
+                cv2.imwrite("debug_preprocessed.png", img)
 
             return img
         except Exception as e:
             logger.error(f"Preprocessing failed: {e}")
-            return None    
+            return None
+
                 
     def _initialize_mutuelle_patterns(self):
         """Patterns pour différentes mutuelles françaises"""
@@ -201,7 +219,7 @@ class GeneralizedOCRProcessor:
 
         return "\n\n".join(all_text)
     
-    def normalize_text(self, text: str) -> str:
+    def normalize_text_1(self, text: str) -> str:
         """Nettoyage agressif du texte OCR"""
         text = text.replace("\n", " ")
         text = re.sub(r"\s{2,}", " ", text)
@@ -252,7 +270,8 @@ class GeneralizedOCRProcessor:
         original_text= self.clean_text_blocks(original_text)
         original_text= self.merge_beneficiaire_blocks(original_text)
         
-        text = self.normalize_text(text)
+        # original_text = self.normalize_text_1(original_text)
+        # original_text = self.normalize_text_2(original_text)
         print("\n====== ORIGINAL TEXT ======")
         print(original_text)  # Limiter si très long
         print("============================\n")
@@ -580,69 +599,134 @@ class GeneralizedOCRProcessor:
 
         return "\n".join(merged)
     
+    def normalize_text_2(self, text: str) -> str:
+        """
+        Nettoie et normalise le texte OCR en corrigeant les erreurs connues
+        d'après le dictionnaire officiel des codes et labels.
+        """
+        # --- Dictionnaires de référence ---
+        valid_codes = set(self.codification["codes"].keys())
+        valid_labels = set(self.codification["labels"].keys())
+        
+        # --- Corrections spécifiques fréquentes OCR ---
+        replacements = {
+            "1009": "100%",
+            "10010000": "100/100/00",
+            "DEER": "DEPR",
+            "DEER!": "DEPR",
+            "OcISC": "OCSC",
+            "OCIROCSP": "OCIROC SP",
+            "ISROC:SP": "ISROC SP",
+            "SPPSC": "SPSC",
+            "RLAX": "RLAX",   # déjà correct dans ton JSON
+        }
+        for wrong, correct in replacements.items():
+            text = text.replace(wrong, correct)
+
+        # --- Normalisation des tokens OCR ---
+        def normalize_token(token: str) -> str:
+            token = re.sub(r'[^A-Za-z0-9/%]', '', token)  # garder alphanum + %
+            if not token:
+                return ""
+            # Vérifier dans codes
+            match = get_close_matches(token, valid_codes, n=1, cutoff=0.8)
+            if match:
+                return match[0]
+            # Vérifier dans labels
+            match = get_close_matches(token, valid_labels, n=1, cutoff=0.8)
+            if match:
+                return match[0]
+            return token  # garder brut si pas trouvé
+
+        # Remplacer chaque mot par sa version corrigée
+        tokens = text.split()
+        normalized_tokens = [normalize_token(tok) for tok in tokens]
+        text = " ".join(normalized_tokens)
+
+        # --- Nettoyage final ---
+        return text
+   
+    def fuzzy_lookup(self,key: str, dictionary: dict, cutoff: float = 0.7) -> str:
+        """
+        Cherche la clé la plus proche dans le dictionnaire selon difflib.
+        Retourne la valeur correspondante si trouvée, sinon chaîne vide.
+        """
+        key_clean = re.sub(r'[^A-Za-z0-9]', '', key.upper())
+        matches = get_close_matches(key_clean, dictionary.keys(), n=1, cutoff=cutoff)
+        if matches:
+            return dictionary[matches[0]]
+        return ""
+   
     def extract_prestations_with_labels(self, text: str) -> List[List[Dict]]:
         """
-        Extrait colonnes, labels, valeurs et descriptions pour CHAQUE bénéficiaire.
+        Extrait colonnes, labels, valeurs, descriptions ET notes (1), (1/4), (2)...
         Retourne une liste : [prestations_benef1, prestations_benef2, ...]
         """
-
         all_prestations = []
 
         # --- Extraire colonnes (entêtes) ---
         columns_match = re.search(r"Nom\s*-\s*Prénom\s+([^\r\n]+)", text)
         raw_columns = columns_match.group(1).split() if columns_match else []
-
-        # Nettoyer colonnes (supprimer *, ", etc.)
-        columns = [re.sub(r'[^A-Za-zÀ-ÖØ-öø-ÿ0-9]', '', c) for c in raw_columns]
-        columns = [c for c in columns if c]  # enlever les vides
+        columns = [re.sub(r'[^A-Za-zÀ-ÖØ-öø-ÿ0-9]', '', c) for c in raw_columns if c.strip()]
 
         # --- Extraire labels (codes SP, PEC, etc.) ---
         labels = []
         date_line_match = re.search(r"^Date\s*(?:naiss|de naissance)[^\r\n]+", text, re.IGNORECASE | re.MULTILINE)
         if date_line_match:
             date_line = date_line_match.group(0)
-            # Chercher TypConv ou Typ Conv
             typconv_match = re.search(r"Typ\s*Conv\s*", date_line, re.IGNORECASE)
             if typconv_match:
-                start_idx = typconv_match.end()  # tout ce qui suit TypConv ou Typ Conv
+                start_idx = typconv_match.end()
                 raw_labels = date_line[start_idx:].split()
                 labels = [re.sub(r'[^A-Za-z0-9/%]', '', l) for l in raw_labels if l.strip()]
 
-        # --- Extraire descriptions ---
+        # --- Extraire descriptions depuis le texte ---
         description_matches = re.findall(r"([A-Z]{3,4})\s+([^\n]+)", text)
         description_map = {code: desc.strip() for code, desc in description_matches}
 
-        # --- Extraire toutes les lignes bénéficiaires avec valeurs ---
+        # --- Pattern pour une ligne bénéficiaire + la ligne de notes éventuelle ---
+        # --- Pattern ligne bénéficiaire ---
         line_pattern = re.compile(
             r"(?:\n|\r)([A-ZÉÈÀÂÎÔÛÇ][A-Za-zÉÈÀÂÎÔÛÇa-z\- ]+)\s+((?:\d+(?:/\d+)+|\d+%|PEC)(?:\s+(?:\d+(?:/\d+)+|\d+%|PEC))*)",
             re.MULTILINE
         )
-        
-        print("Labels:\n" + "\n".join(labels))
-        print("Colonnes:\n" + "\n".join(columns))
-        print("Descriptions:")
-        for k, v in description_map.items():
-            print(f"  {k} → {v}")
-        
+
+        lines = text.splitlines()
+
         for match in line_pattern.finditer(text):
             values_line = match.group(2).split()
-            prestations = []
 
+            # Chercher les 3 lignes suivantes dans le texte brut
+            start_line = text[:match.start()].count("\n")
+            candidate_notes = []
+            for j in range(1, 4):
+                if start_line + j < len(lines):
+                    candidate_notes.extend(re.findall(r"\(\d+(?:/\d+)?\)", lines[start_line + j]))
+
+            prestations = []
             for i in range(min(len(columns), len(labels), len(values_line))):
-                code = columns[i]
-                label = labels[i]
+                code_raw = columns[i]
+                label_raw = labels[i]
                 valeur = values_line[i]
-                description = description_map.get(code, "")
+
+                note = candidate_notes[i] if i < len(candidate_notes) else None
+                note_description = self.notes_map.get(note.strip("()"), f"Note {note}") if note else None
+
                 prestations.append({
-                    "code": code,
-                    "label": label,
+                    "code": code_raw,
+                    "label": label_raw,
                     "valeur": valeur,
-                    "description": description
+                    "description": description_map.get(code_raw, ""),
+                    "extra_description_code": self.fuzzy_lookup(code_raw, self.codification.get("codes", {})),
+                    "extra_description_label": self.fuzzy_lookup(label_raw, self.codification.get("labels", {})),
+                    "note": note,
+                    "note_description": note_description
                 })
 
             all_prestations.append(prestations)
 
         return all_prestations
+
 
     def normalize_beneficiaires(self,text: str) -> str:
         lines = text.splitlines()

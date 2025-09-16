@@ -1,0 +1,144 @@
+{
+  "nom": "SC",
+  "prenom": "MERLY MARIE CLAU",
+  "numero_securite_sociale": "263075960622513",
+  "mutuelle": "PLANSANTE",
+  "numero_contrat": "0000000000177056",
+  "date_naissance": "18/07/1963",
+  "adresse": null,
+  "numero_adherent": "20222441",
+  "numero_amc": "0401737",
+  "date_debut_validite": "01/01/2025",
+  "date_fin_validite": "31/12/2025",
+  "beneficiaires": [
+    {
+      "nom": "SC",
+      "prenom": "MERLY MARIE CLAU",
+      "date_naissance": "18/07/1963",
+      "prestations": [
+        {
+          "code": "PHAR",
+          "label": "SP",
+          "valeur": "100/100/100",
+          "description": "Pharmacie remboursable",
+          "extra_description_code": "Pharmacie (LPP)",
+          "extra_description_label": "Soins et Prestations / Santé",
+          "note": "(1)",
+          "note_description": "Prise en charge à la demande (adresse indiquée au verso)"
+        },
+        {
+          "code": "MED",
+          "label": "SP",
+          "valeur": "100%",
+          "description": "Médecins généralistes et spécialistes",
+          "extra_description_code": "Médecin généraliste (NGAP)",
+          "extra_description_label": "Soins et Prestations / Santé",
+          "note": "(1/4)",
+          "note_description": "Note (1/4)"
+        },
+        {
+          "code": "RLAX",
+          "label": "SP",
+          "valeur": "100%",
+          "description": "Laboratoires +",
+          "extra_description_code": "Actes de biologie (CCAM)",
+          "extra_description_label": "Soins et Prestations / Santé",
+          "note": "(2)",
+          "note_description": "Selon les accords locaux"
+        },
+        {
+          "code": "SAGE",
+          "label": "SP",
+          "valeur": "100%",
+          "description": "Sages-Femmes Centre de Gestion KLESIA MUT' KLESIA",
+          "extra_description_code": "Sage-femme (NGAP)",
+          "extra_description_label": "Soins et Prestations / Santé",
+          "note": "(1/4)",
+          "note_description": "Note (1/4)"
+        },
+        {
+          "code": "EXTE",
+          "label": "IS/ROCSP",
+          "valeur": "100%",
+          "description": "Soins externes sauf prothèse dentaire 28039 CHARTRES CEDEX c",
+          "extra_description_code": "Soins externes (NGAP)",
+          "extra_description_label": "Information remboursement mutuelle",
+          "note": "(1/4)",
+          "note_description": "Note (1/4)"
+        },
+        {
+          "code": "CSTE",
+          "label": "SP",
+          "valeur": "100%",
+          "description": "Centre de Santé hors dentaire",
+          "extra_description_code": "Centre de santé (NGAP)",
+          "extra_description_label": "Soins et Prestations / Santé",
+          "note": "(2)",
+          "note_description": "Selon les accords locaux"
+        },
+        {
+          "code": "HOSP",
+          "label": "OC/ROCSP",
+          "valeur": "PEC",
+          "description": "Hospitalisation hors soins externes",
+          "extra_description_code": "Hospitalisation (NGAP)",
+          "extra_description_label": "Information remboursement mutuelle",
+          "note": "(1)",
+          "note_description": "Prise en charge à la demande (adresse indiquée au verso)"
+        },
+        {
+          "code": "OPTI",
+          "label": "SP/SC",
+          "valeur": "PEC",
+          "description": "Opticien",
+          "extra_description_code": "Optique (LPP)",
+          "extra_description_label": "Soins et Prestations secondaires",
+          "note": null,
+          "note_description": null
+        },
+        {
+          "code": "DESO",
+          "label": "SP",
+          "valeur": "100%",
+          "description": "Soins dentaires",
+          "extra_description_code": "Prothèses dentaires (LPP)",
+          "extra_description_label": "Soins et Prestations / Santé",
+          "note": null,
+          "note_description": null
+        },
+        {
+          "code": "DEPR",
+          "label": "OC/SC",
+          "valeur": "PEC",
+          "description": "Prothèse dentaire",
+          "extra_description_code": "Prothèses dentaires (LPP)",
+          "extra_description_label": "Organisme Complémentaire Santé / Convention",
+          "note": null,
+          "note_description": null
+        },
+        {
+          "code": "AUDI",
+          "label": "OC/SC",
+          "valeur": "PEC",
+          "description": "Audioprothèse",
+          "extra_description_code": "Audioprothèse (LPP)",
+          "extra_description_label": "Organisme Complémentaire Santé / Convention",
+          "note": null,
+          "note_description": null
+        },
+        {
+          "code": "DIV",
+          "label": "SP",
+          "valeur": "100%",
+          "description": "Transport sanitaire, Fournisseurs sauf",
+          "extra_description_code": "Transport sanitaire (LPP)",
+          "extra_description_label": "Soins et Prestations / Santé",
+          "note": null,
+          "note_description": null
+        }
+      ]
+    }
+  ],
+  "extraction_method": "generalized_regex",
+  "raw_text_preview": "Page 1:\n\nEH ATTESTATION DE TIERS PAYANT Période de validité :\n| PLANSANTE 01/01/2025 au 31/12/2025\nsanté 28 |\n0040173 7 iA DROITS EN LIGNE OUVERTS- IDB\nN°AMC : LE Sr: ri .\nTyp Conv : voir colonnes, CSR : Assuré principal AMC : MERLY MARIE CLAU\nN° adhérent: 20222441 re\nR N° contrat: 0000000000177056\nBénéficiaire(s) du tiers payant Dépenses de santé concernées par le tiers payant(*)\nNom - Prénom PHAR MED RLAX SAGE EXTE CSTE HOSP OPTI DESO DEPR AUDI DIV\nDate naiss Rang N° INSEE Typ Conv SP SP SP SP..."
+}
