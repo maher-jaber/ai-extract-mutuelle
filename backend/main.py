@@ -156,20 +156,25 @@ class GeneralizedOCRProcessor:
         return None
 
     def run_paddleocr(self, img_path: str) -> str:
-        """Exécuter PaddleOCR (nouvelle API)"""
+        """Exécuter PaddleOCR (nouvelle API)"""        
         try:
-            result = self.ocr.predict(img_path)  # nouvelle API
+            result = self.ocr.predict(img_path)  # plus de cls=True ici
             text_parts = []
 
             if result and len(result) > 0:
-                data = result[0]  # Premier élément = notre image
-                texts = data.get("rec_texts", [])
-                scores = data.get("rec_scores", [])
-                boxes = data['rec_boxes'] 
-                
-                for txt, conf in zip(texts, scores):
-                    if conf > 0.5:  # seuil confiance
-                        text_parts.append(txt)
+                for line in result[0]:
+                    try:
+                        # Format typique : [[box], (text, conf)]
+                        if isinstance(line, list) and len(line) >= 2:
+                            txt, conf = line[1]
+                            if conf > 0.5:
+                                text_parts.append(txt)
+                        elif isinstance(line, dict):  
+                            if line.get("confidence", 0) > 0.5:
+                                text_parts.append(line.get("text", ""))
+                    except Exception as e:
+                        logger.warning(f"PaddleOCR line parse failed: {line} ({e})")
+                        continue
 
             return " ".join(text_parts).strip()
 
