@@ -1,62 +1,93 @@
+import numpy as np
 import json
-from pathlib import Path
-from main import GeneralizedOCRProcessor  # ton module précédent
+from paddleocr import PaddleOCR
 
-def print_summary(result: dict):
-    print("\n=== Résumé des bénéficiaires ===")
-    if "beneficiaires" in result and result["beneficiaires"]:
-        for idx, b in enumerate(result["beneficiaires"], 1):
-            print(f"{idx}. {b.get('prenom', '')} {b.get('nom', '')} - Date de naissance: {b.get('date_naissance', '')}")
-            prestations = b.get("prestations", [])
-            if prestations:
-                print("  Prestations:")
-                for p in prestations:
-                    code = p.get("code", "")
-                    label = p.get("label", "")
-                    valeur = p.get("valeur", "")
-                    note_desc = p.get("note_description", "")
-                    print(f"    - {code} | {label} | {valeur} | {note_desc}")
-            else:
-                print("  Pas de prestations trouvées.")
-    else:
-        print("Aucun bénéficiaire détecté.")
+# Initialiser PaddleOCR une seule fois
+ocr = PaddleOCR(use_textline_orientation=True, lang='fr')
 
-    print("\n=== Informations principales ===")
-    for key in ["nom", "prenom", "date_naissance", "numero_securite_sociale",
-                "mutuelle", "numero_contrat", "numero_adherent", "numero_amc",
-                "date_debut_validite", "date_fin_validite"]:
-        if key in result:
-            print(f"{key}: {result[key]}")
+def extract_prestations_notes_multi(image_path: str, key_prestation: list, key_beneficiaire: list) -> str:
+    """
+    Extrait les prestations et notes pour plusieurs bénéficiaires dans une image.
 
-def main():
-    import sys
-    debug_mode = "--debug" in sys.argv
-    if debug_mode:
-        sys.argv.remove("--debug")
+    Args:
+        image_path (str): Chemin vers l'image.
+        key_prestation (list): Liste des mots-clés pour identifier les prestations.
+        key_beneficiaire (list): Liste des noms de bénéficiaires à détecter.
 
-    if len(sys.argv) > 1:
-        input_file = sys.argv[1]
-    else:
-        # Cherche fichier commun
-        possible_files = ["mutuelle.pdf", "document.pdf", "carte.pdf", "assurance.pdf"]
-        input_file = None
-        for file in possible_files:
-            if Path(file).exists():
-                input_file = file
-                break
-        if not input_file:
-            print("Usage: python script_summary.py [--debug] <file_path>")
-            return
+    Returns:
+        str: JSON contenant Prestation, Note et Beneficiaire pour chacun.
+    """
+    result = ocr.predict(image_path)
+    if not result:
+        return json.dumps([])  # Retourne liste vide si échec OCR
 
-    processor = GeneralizedOCRProcessor(lang='fr', debug=debug_mode)
-    result = processor.process_file(input_file)
+    data = result[0]
+    texts = data['rec_texts']
+    boxes = data['rec_boxes']
 
-    # Affiche résumé
-    print_summary(result)
+    # Extraire X et Y pour chaque mot
+    items = []
+    for t, box in zip(texts, boxes):
+        box = np.array(box, dtype=float).reshape(-1, 2)
+        x_center = np.mean(box[:, 0])
+        y_center = np.mean(box[:, 1])
+        items.append({"text": t, "x": x_center, "y": y_center})
 
-    # Optionnel : sauvegarde JSON complet
-    with open("result.json", "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2)
+    # Détecter les bénéficiaires
+    beneficiaires = []
+    for b in key_beneficiaire:
+        matches = [i for i in items if b in i['text']]
+        for m in matches:
+            beneficiaires.append({"name": b, "y": m['y']})
 
-if __name__ == "__main__":
-    main()
+    # Trier les bénéficiaires par position verticale
+    beneficiaires = sorted(beneficiaires, key=lambda x: x['y'])
+
+    result_assoc = []
+
+    for idx, b in enumerate(beneficiaires):
+        # Définir zone verticale : entre ce bénéficiaire et le suivant
+        y_top = b['y']
+        y_bottom = beneficiaires[idx + 1]['y'] if idx + 1 < len(beneficiaires) else float('inf')
+
+        # Filtrer les items dans cette zone
+        zone_items = [i for i in items if y_top <= i['y'] < y_bottom]
+
+        # Séparer prestations et notes
+        prestations = [i for i in zone_items if i['text'] in key_prestation]
+        notes = [i for i in zone_items if i['text'].startswith("(") and i['text'].endswith(")")]
+
+        # Trier par X
+        prestations = sorted(prestations, key=lambda x: x['x'])
+        notes = sorted(notes, key=lambda x: x['x'])
+
+        # Associer chaque prestation à la note la plus proche horizontalement
+        for p in prestations:
+            closest_note = None
+            min_dist = float('inf')
+            for n in notes:
+                dist = abs(p['x'] - n['x'])
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_note = n
+            closest_note_text = ""
+            if closest_note and min_dist <= 30:
+                closest_note_text = closest_note['text']
+                notes.remove(closest_note)
+            result_assoc.append({
+                "Prestation": p['text'],
+                "Note": closest_note_text,
+                "Beneficiaire": b['name']
+            })
+
+    return json.dumps(result_assoc, ensure_ascii=False, indent=2)
+
+
+# Exemple d'utilisation
+image_path = "mercer.png"
+key_prestation = ["PHAR","MED","SVIL","CSTE","TRAN","EXTE","DESO","DEPR","HOSP","OPTI","AUDI"]
+key_beneficiaire = ["DE FELICE GONZA SEVRINE","PRIETO DE FELIC RAFAEL ERN","PRIETO DE FELIC VALENTINA","PRIETO DE FELIC ALEXANDRA"]  # Tous les bénéficiaires présents
+
+json_result = extract_prestations_notes_multi(image_path, key_prestation, key_beneficiaire)
+print(json_result)
+

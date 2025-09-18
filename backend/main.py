@@ -47,6 +47,56 @@ class GeneralizedOCRProcessor:
                 logger.info("Multilingual NER pipeline initialized")
         except Exception as e:
             logger.warning(f"NER unavailable: {e}")
+    def compute_global_confidence(self, paddle_results, easyocr_results, tesseract_text, extracted_data) -> float:
+        """
+        Calcule un indice de confiance global basé sur OCR + regex + recoupements.
+        """
+        confidences = []
+
+        # --- 1. PaddleOCR scores ---
+        if paddle_results and len(paddle_results) > 0:
+            scores = [line[1][1] for line in paddle_results[0] if isinstance(line, list) and len(line) >= 2]
+            if scores:
+                confidences.append(np.mean(scores))
+
+        # --- 2. EasyOCR scores ---
+        if easyocr_results:
+            scores = [conf for _, _, conf in easyocr_results]
+            if scores:
+                confidences.append(np.mean(scores))
+
+        # --- 3. Tesseract approximatif : ratio caractères valides ---
+        if tesseract_text:
+            valid_chars = len(re.findall(r"[A-Za-z0-9%/]", tesseract_text))
+            ratio_valid = valid_chars / max(1, len(tesseract_text))
+            confidences.append(ratio_valid)
+
+        # Score OCR moyen
+        score_ocr = np.mean(confidences) if confidences else 0.5
+
+        # --- 4. Vérification regex (cohérence des champs extraits) ---
+        regex_checks = 0
+        total_checks = 0
+
+        for field in ["numero_securite_sociale", "date_naissance", "numero_amc"]:
+            total_checks += 1
+            if extracted_data.get(field):
+                regex_checks += 1
+
+        score_regex = regex_checks / total_checks if total_checks > 0 else 0.5
+
+        # --- 5. Recoupement multi-OCR ---
+        crosscheck = 0
+        total_cross = 0
+        for candidate in ["mutuelle", "numero_contrat"]:
+            total_cross += 1
+            if extracted_data.get(candidate):
+                crosscheck += 1
+        score_cross = crosscheck / total_cross if total_cross > 0 else 0.5
+
+        # --- 6. Score final ---
+        global_conf = (0.6 * score_ocr) + (0.3 * score_regex) + (0.1 * score_cross)
+        return round(global_conf, 3)
   
     def preprocess_image(self, image: Union[str, np.ndarray]) -> Optional[np.ndarray]:
         try:
@@ -106,25 +156,20 @@ class GeneralizedOCRProcessor:
         return None
 
     def run_paddleocr(self, img_path: str) -> str:
-        """Exécuter PaddleOCR (nouvelle API)"""        
+        """Exécuter PaddleOCR (nouvelle API)"""
         try:
-            result = self.ocr.predict(img_path)  # plus de cls=True ici
+            result = self.ocr.predict(img_path)  # nouvelle API
             text_parts = []
 
             if result and len(result) > 0:
-                for line in result[0]:
-                    try:
-                        # Format typique : [[box], (text, conf)]
-                        if isinstance(line, list) and len(line) >= 2:
-                            txt, conf = line[1]
-                            if conf > 0.5:
-                                text_parts.append(txt)
-                        elif isinstance(line, dict):  
-                            if line.get("confidence", 0) > 0.5:
-                                text_parts.append(line.get("text", ""))
-                    except Exception as e:
-                        logger.warning(f"PaddleOCR line parse failed: {line} ({e})")
-                        continue
+                data = result[0]  # Premier élément = notre image
+                texts = data.get("rec_texts", [])
+                scores = data.get("rec_scores", [])
+                boxes = data['rec_boxes'] 
+                
+                for txt, conf in zip(texts, scores):
+                    if conf > 0.5:  # seuil confiance
+                        text_parts.append(txt)
 
             return " ".join(text_parts).strip()
 
@@ -276,8 +321,7 @@ class GeneralizedOCRProcessor:
         print(original_text)  # Limiter si très long
         print("============================\n")
         data = {
-            "nom": None,
-            "prenom": None,
+            "nom_complet": None,  # Changé de "nom" et "prenom" à "nom_complet"
             "numero_securite_sociale": None,
             "mutuelle": None,
             "numero_contrat": None,
@@ -288,7 +332,7 @@ class GeneralizedOCRProcessor:
             "date_debut_validite": None,
             "date_fin_validite": None,
             "beneficiaires": [],
-            "prestations": {},  # Added for table data
+            "prestations": {},
             "extraction_method": "generalized_regex"
         }
         
@@ -304,13 +348,13 @@ class GeneralizedOCRProcessor:
         # Si on a des bénéficiaires, utiliser le premier comme assuré principal
         if data["beneficiaires"]:
             principal = data["beneficiaires"][0]
-            data["nom"] = principal["nom"]
-            data["prenom"] = principal["prenom"]
+            data["nom_complet"] = principal["nom_complet"]  # Utiliser nom_complet
             data["date_naissance"] = principal.get("date_naissance")
         else:
             # Fallback si l'extraction des bénéficiaires échoue
             self.extract_names_fallback(original_text, data)
-        
+        if data["nom_complet"]:
+            data["nom_complet"] = self.clean_name(data["nom_complet"])       
         # Patterns pour la sécurité sociale
         ssn_patterns = [
             r'N°\s*INSEE\s*[:\-]?\s*([\d\s\.]{13,25})',
@@ -326,15 +370,21 @@ class GeneralizedOCRProcessor:
         
         # Patterns adhérent
         adherent_patterns = [
-            r'N[°ºoO]\s*adhérent\s*[:\-]?\s*(\d{6,8})',
-            r'Dis\s*(\d{6,8})',
-            r'N[°ºoO]\s*Adhérent\s*:\s*(\d{6,8})'  # Pour ROEDERER
+            r'N[°ºoO]\s*adhérent\s*[:\-]?\s*([A-Z0-9]{6,12})',
+            r'Dis\s*([A-Z0-9]{6,12})',
+            r'N[°ºoO]\s*Adhérent\s*:\s*([A-Z0-9]{6,12})',  # Pour ROEDERER
+            r'Adhérent\s*[:\-]?\s*([A-Z0-9]{6,12})'
         ]
         
         # Patterns contrat
         contract_patterns = [
-            r'N[°ºoO]\s*contrat\s*[:\-]?\s*(\d+)',
-            r'Contrat\s*N[°ºoO]\s*(\d+)'
+            r'N[°ºoO]\s*contrat\s*[:\-]?\s*([A-Z0-9]+)',
+            r'N[°ºoO]\s*client\s*[:\-]?\s*(\d{13,})',
+            r'Contrat\s*N[°ºoO]\s*([A-Z0-9]+)',
+            r'Contrat\s*[:\-]?\s*([A-Z0-9]+)',
+            r'Client\s*N[°ºoO]\s*([A-Z0-9]+)',
+            r'Client\s*[:\-]?\s*([A-Z0-9]+)',
+            r'Réf[\.]?\s*contrat\s*[:\-]?\s*([A-Z0-9]+)'
         ]
         
         # Patterns mutuelle
@@ -378,7 +428,7 @@ class GeneralizedOCRProcessor:
             matches = re.finditer(pattern, original_text, re.IGNORECASE)
             for match in matches:
                 candidate = match.group(1).strip()
-                if 6 <= len(candidate) <= 8:
+                if 6 <= len(candidate) <= 12:  # Longueur plus flexible
                     data["numero_adherent"] = candidate
                     break
         
@@ -386,8 +436,10 @@ class GeneralizedOCRProcessor:
         for pattern in contract_patterns:
             matches = re.finditer(pattern, original_text, re.IGNORECASE)
             for match in matches:
-                data["numero_contrat"] = match.group(1).strip()
-                break
+                candidate = match.group(1).strip()
+                if len(candidate) >= 4:  # Minimum 4 caractères pour un numéro de contrat
+                    data["numero_contrat"] = candidate
+                    break
         
         # Extraction mutuelle
         for pattern in mutuelle_patterns:
@@ -416,6 +468,19 @@ class GeneralizedOCRProcessor:
         
         return data
     
+    def clean_name(self, name: str) -> str:
+        """Nettoyer le nom des artefacts OCR"""
+        # Supprimer les acronymes courts au début
+        name = re.sub(r'^\s*(SC|SP|PEC|AMC|INSEE|Rang|Typ|Conv)\s+', '', name, flags=re.IGNORECASE)
+        
+        # Supprimer les chiffres et symboles spéciaux
+        name = re.sub(r'[0-9%@()]', '', name)
+        
+        # Supprimer les espaces multiples
+        name = re.sub(r'\s{2,}', ' ', name).strip()
+        
+        return name    
+    
     def extract_dates_validite(self, text: str) -> tuple:
         """Extraction robuste des dates de validité"""
         patterns = [
@@ -443,10 +508,12 @@ class GeneralizedOCRProcessor:
         
         if match:
             full_name = match.group(1).strip()
-            name_parts = full_name.split()
-            if len(name_parts) >= 2:
-                data["nom"] = name_parts[0]
-                data["prenom"] = " ".join(name_parts[1:])
+            # Nettoyer le nom des artefacts
+            full_name = re.sub(r'^\s*[A-Z]{1,3}\s+', '', full_name)  # Supprimer mots courts au début
+            full_name = re.sub(r'\b(SC|SP|PEC|AMC)\b', '', full_name, flags=re.IGNORECASE)
+            full_name = re.sub(r'\s{2,}', ' ', full_name).strip()
+            
+            data["nom_complet"] = full_name
         
         # Recherche de la date de naissance près des mentions de date
         if not data["date_naissance"]:
@@ -478,27 +545,16 @@ class GeneralizedOCRProcessor:
                 entities.extend(chunk_entities)
             
             persons = []
-            organizations = []
             
             for ent in entities:
                 if ent["score"] > 0.7:  # High confidence entities only
                     if ent["entity_group"] in ["PER", "PERSON"]:
                         persons.append(ent["word"].strip())
-                    elif ent["entity_group"] in ["ORG", "ORGANIZATION"]:
-                        organizations.append(ent["word"].strip())
             
             # Extract names from person entities
             if persons:
                 # Take the first high-confidence person entity
-                person_name = persons[0]
-                name_parts = person_name.split()
-                if len(name_parts) >= 2:
-                    extracted_data["nom"] = name_parts[-1].upper()
-                    extracted_data["prenom"] = " ".join(name_parts[:-1]).capitalize()
-            
-            # Extract organization (potential insurance company)
-            if organizations:
-                extracted_data["mutuelle"] = organizations[0].upper()
+                extracted_data["nom_complet"] = persons[0]  # Seulement nom_complet
                 
         except Exception as e:
             logger.warning(f"NER extraction failed: {e}")
@@ -508,8 +564,8 @@ class GeneralizedOCRProcessor:
     def extract_beneficiaires(self, text: str) -> list:
         beneficiaires = []
 
-        # Regex : nom complet en majuscules suivi quelque part de la date
-        pattern = r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{3,})\s+(?:[0-9\/%PEC@() ]+)?\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
+        # Regex améliorée pour éviter les artefacts comme "SC"
+        pattern = r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{3,})(?:\s+[0-9\/%PEC@() ]+)?\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
 
         matches = re.finditer(pattern, text, re.MULTILINE)
 
@@ -517,19 +573,22 @@ class GeneralizedOCRProcessor:
             full_name = match.group(1).strip()
             date_naissance = match.group(2).replace(".", "/").replace("-", "/")
 
-            # Nettoyage du nom (éviter les artefacts)
-            full_name = re.sub(r'\b(PEC|SP|100|%|@\b).*', '', full_name).strip()
-            full_name = re.sub(r'\s{2,}', ' ', full_name)
+            # Nettoyage plus agressif du nom
+            # Supprimer les mots courts isolés (comme SC, SP, etc.) au début
+            full_name = re.sub(r'^\s*[A-Z]{1,3}\s+', '', full_name)  # Supprimer mots de 1-3 lettres au début
+            full_name = re.sub(r'\b(PEC|SP|SC|100|%|@|AMC|INSEE|Rang|Typ|Conv)\b.*', '', full_name, flags=re.IGNORECASE)
+            full_name = re.sub(r'\s{2,}', ' ', full_name).strip()
 
-            if len(full_name.split()) >= 2:
+            # Vérifier que le nom a au moins 2 parties et ne contient pas que des acronymes
+            name_parts = full_name.split()
+            if len(name_parts) >= 2 and not all(len(part) <= 3 for part in name_parts):
                 beneficiaire = {
-                    "nom": full_name.split()[0],
-                    "prenom": " ".join(full_name.split()[1:]),
+                    "nom_complet": full_name,
                     "date_naissance": date_naissance
                 }
 
                 # Éviter les doublons
-                if not any(b["nom"] == beneficiaire["nom"] and b["prenom"] == beneficiaire["prenom"] for b in beneficiaires):
+                if not any(b["nom_complet"] == beneficiaire["nom_complet"] for b in beneficiaires):
                     beneficiaires.append(beneficiaire)
 
         return beneficiaires
@@ -606,7 +665,7 @@ class GeneralizedOCRProcessor:
         """
         # --- Dictionnaires de référence ---
         valid_codes = set(self.codification["codes"].keys())
-        valid_labels = set(self.codification["labels"].keys())
+        valid_labels = set(self.codification["codes"].keys())
         
         # --- Corrections spécifiques fréquentes OCR ---
         replacements = {
@@ -667,7 +726,7 @@ class GeneralizedOCRProcessor:
         # --- Extraire colonnes (entêtes) ---
         columns_match = re.search(r"Nom\s*-\s*Prénom\s+([^\r\n]+)", text)
         raw_columns = columns_match.group(1).split() if columns_match else []
-        columns = [re.sub(r'[^A-Za-zÀ-ÖØ-öø-ÿ0-9]', '', c) for c in raw_columns if c.strip()]
+        columns = [re.sub(r'[^A-Za-zÀ-ÖØ-öø-ÿ0-9/:]', '', c) for c in raw_columns if c.strip()]  # Garder slash et deux-points
 
         # --- Extraire labels (codes SP, PEC, etc.) ---
         labels = []
@@ -678,14 +737,13 @@ class GeneralizedOCRProcessor:
             if typconv_match:
                 start_idx = typconv_match.end()
                 raw_labels = date_line[start_idx:].split()
-                labels = [re.sub(r'[^A-Za-z0-9/%]', '', l) for l in raw_labels if l.strip()]
+                labels = [re.sub(r'[^A-Za-z0-9/%/:]', '', l) for l in raw_labels if l.strip()]  # Garder slash et deux-points
 
         # --- Extraire descriptions depuis le texte ---
         description_matches = re.findall(r"([A-Z]{3,4})\s+([^\n]+)", text)
         description_map = {code: desc.strip() for code, desc in description_matches}
 
         # --- Pattern pour une ligne bénéficiaire + la ligne de notes éventuelle ---
-        # --- Pattern ligne bénéficiaire ---
         line_pattern = re.compile(
             r"(?:\n|\r)([A-ZÉÈÀÂÎÔÛÇ][A-Za-zÉÈÀÂÎÔÛÇa-z\- ]+)\s+((?:\d+(?:/\d+)+|\d+%|PEC)(?:\s+(?:\d+(?:/\d+)+|\d+%|PEC))*)",
             re.MULTILINE
@@ -712,13 +770,44 @@ class GeneralizedOCRProcessor:
                 note = candidate_notes[i] if i < len(candidate_notes) else None
                 note_description = self.notes_map.get(note.strip("()"), f"Note {note}") if note else None
 
+                # Gestion des labels composés avec slash ou deux-points (ex: "OC/SC", "OC:SC")
+                extra_descriptions = []
+                
+                def extract_individual_codes(combined_code):
+                    """Extrait les codes individuels d'une chaîne combinée"""
+                    codes = []
+                    # Essayer d'abord de séparer par slash
+                    if "/" in combined_code:
+                        codes.extend(combined_code.split("/"))
+                    # Ensuite par deux-points
+                    elif ":" in combined_code:
+                        codes.extend(combined_code.split(":"))
+                    else:
+                        codes.append(combined_code)
+                    
+                    # Nettoyer et filtrer les codes vides
+                    return [code.strip() for code in codes if code.strip()]
+                
+                # Traiter le label
+                label_codes = extract_individual_codes(label_raw)
+                for code in label_codes:
+                    desc = self.fuzzy_lookup(code, self.codification.get("codes", {}))
+                    if desc:
+                        extra_descriptions.append(f"{code}: {desc}")
+                
+                # Traiter le code de colonne
+                code_codes = extract_individual_codes(code_raw)
+                for code in code_codes:
+                    desc = self.fuzzy_lookup(code, self.codification.get("codes", {}))
+                    if desc and f"{code}: {desc}" not in extra_descriptions:
+                        extra_descriptions.append(f"{code}: {desc}")
+
                 prestations.append({
                     "code": code_raw,
                     "label": label_raw,
                     "valeur": valeur,
                     "description": description_map.get(code_raw, ""),
-                    "extra_description_code": self.fuzzy_lookup(code_raw, self.codification.get("codes", {})),
-                    "extra_description_label": self.fuzzy_lookup(label_raw, self.codification.get("labels", {})),
+                    "extra_descriptions": extra_descriptions,  # Liste de toutes les descriptions
                     "note": note,
                     "note_description": note_description
                 })
@@ -791,10 +880,20 @@ class GeneralizedOCRProcessor:
         
         # Merge results
         final_data = self.merge_extracted_data(regex_data, ner_data)
+        result_paddle = None  # si tu veux stocker résultats bruts PaddleOCR
+        result_easyocr = None  # si tu veux stocker résultats bruts EasyOCR
+        tesseract_text = text
         
+        final_data["confidence"] = self.compute_global_confidence(
+            paddle_results=result_paddle, 
+            easyocr_results=result_easyocr, 
+            tesseract_text=tesseract_text, 
+            extracted_data=final_data
+        )
         # Add raw text for debugging (truncated)
         final_data["raw_text_preview"] = text[:500] + "..." if len(text) > 500 else text
-        
+
+
         return final_data
 
 def main():
