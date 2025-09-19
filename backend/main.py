@@ -12,6 +12,7 @@ import numpy as np
 from pathlib import Path
 import easyocr
 from difflib import get_close_matches
+import glob
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -259,10 +260,12 @@ class GeneralizedOCRProcessor:
             text_paddle = self.run_paddleocr(temp_path)
             text_tesseract = self.run_tesseract(processed)
             text_easyocr = self.run_easyocr(temp_path)
-
+            
+            
             combined = "\n".join([text_paddle, text_tesseract, text_easyocr])
             all_text.append(f"Page {i+1}:\n{combined}")
             
+            json1=self.extract_prestations_notes(temp_path,"\n\n".join(all_text))
             # Nettoyage du fichier temporaire
             #  if os.path.exists(temp_path):
             #  os.remove(temp_path)
@@ -813,8 +816,8 @@ class GeneralizedOCRProcessor:
                     "valeur": valeur,
                     "description": description_map.get(code_raw, ""),
                     "extra_descriptions": extra_descriptions,  # Liste de toutes les descriptions
-                    "note": note,
-                    "note_description": note_description
+                    "note": None,
+                    "note_description": None
                 })
 
             all_prestations.append(prestations)
@@ -927,26 +930,50 @@ class GeneralizedOCRProcessor:
 
         # Add raw text for debugging (truncated)
         final_data["raw_text_preview"] = text[:500] + "..." if len(text) > 500 else text
+        
+        # Parcourir tous les fichiers temp_page_*.json
+        for json_file in glob.glob("temp_page_*.json"):
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
 
+                # data est du type { "BENEFICIAIRE": [ {Prestation...}, ... ] }
+                for benef_name, prestations_list in data.items():
+                    # Chercher le bénéficiaire correspondant dans final_data
+                    benef_in_final = next(
+                        (b for b in final_data.get("beneficiaires", []) if b.get("nom_complet") == benef_name),
+                        None
+                    )
+                    if benef_in_final:
+                        for prestation_ocr in prestations_list:
+                            code = prestation_ocr.get("Prestation")
+                            note = prestation_ocr.get("Note")
+                            if code and note:
+                                # Chercher la prestation correspondante dans final_data
+                                for prestation_final in benef_in_final.get("prestations", []):
+                                    if prestation_final.get("code") == code:
+                                        prestation_final["note"] = note
+                                        prestation_final["note_description"] = f"Note détectée OCR: {note}"
+
+            except Exception as e:
+                logger.warning(f"Impossible de lire {json_file}: {e}")
 
         return final_data
+
     
-    def extract_prestations_notes(self,image_path: str) -> str:
+    def extract_prestations_notes(self, image_path: str, textfromapp: str) -> str:
         """
-        Extrait les prestations et leurs notes associées à partir d'une image OCRisée,
-        retourne un JSON et le sauvegarde dans un fichier portant le même nom que l'image.
-        
-        Args:
-            image_path (str): chemin de l'image
-        
-        Returns:
-            str: JSON formaté contenant les prestations et leurs notes
+        Extrait les prestations et leurs notes pour chaque bénéficiaire déjà connu et ordonné,
+        retourne un JSON et sauvegarde dans un fichier portant le même nom que l'image.
         """
-        result = ocr.predict(image_path)
+
+        print(f"[INFO] Début traitement OCR pour l'image : {image_path}")
+        result = self.ocr.predict(image_path)
         data = result[0]
 
         texts = data['rec_texts']
         boxes = data['rec_boxes']
+        print(f"[INFO] {len(texts)} textes détectés par OCR")
 
         # Construire une liste d'items avec positions X/Y
         items = []
@@ -956,65 +983,137 @@ class GeneralizedOCRProcessor:
             y_center = np.mean(box[:, 1])
             items.append({"text": t, "x": x_center, "y": y_center})
 
-        # Détection automatique des prestations
-        def detect_prestation_keywords(items):
-            prestation_pattern = r'^[A-Z]{3,4}(?:\s+[A-Z]{2,3})?$'
-            prestations = []
-            for item in items:
-                if re.match(prestation_pattern, item['text']):
-                    prestations.append(item['text'])
-            prestations = list(set([p for p in prestations if len(p) >= 3]))
-            return prestations
-
-        prestations_keywords = detect_prestation_keywords(items)
-
-        if not prestations_keywords:
-            prestations_keywords = ["PHAR","MED","RLAX","SAGE","EXTE","CSTE","HOSP",
-                                    "OPTI","DESO","DEPR","AUDI","DIV","SVIL","TRAN"]
+        # Extraction des codes raw
+        all_prestations_kw = self.extract_prestations_with_labels(textfromapp)
+        prestations_keywords = [prestation["code"] for prestations_benef in all_prestations_kw for prestation in prestations_benef]
+        print(f"[INFO] Prestations détectées : {prestations_keywords}")
 
         # Séparer prestations et notes
-        prestations = [i for i in items if i['text'] in prestations_keywords]
-        notes = [i for i in items if i['text'].startswith("(") and i['text'].endswith(")")]
+        prestations_items = [i for i in items if i['text'] in prestations_keywords]
+        notes_items = [i for i in items if i['text'].startswith("(") and i['text'].endswith(")")]
+        print(f"[INFO] {len(prestations_items)} prestations et {len(notes_items)} notes identifiées")
 
-        # Trier horizontalement
-        prestations = sorted(prestations, key=lambda x: x['x'])
-        notes = sorted(notes, key=lambda x: x['x'])
+        # Détection des bénéficiaires
+        beneficiaires_y = {}
+        header_y = None
+        for item in items:
+            if re.search(r"B[ée]n[ée]ficiaire|Nom.*Pr[ée]nom", item['text'], re.IGNORECASE):
+                header_y = item['y']
+                print(f"[INFO] En-tête bénéficiaire trouvé à Y={header_y:.1f}")
+                break
 
-        # Associer prestations et notes
-        assoc = []
-        for p in prestations:
-            closest_note = None
-            min_dist = float('inf')
-            for n in notes:
-                dist = abs(p['x'] - n['x'])
-                if dist < min_dist:
-                    min_dist = dist
-                    closest_note = n
+        potential_names = []
+        for item in items:
+            if header_y and item['y'] > header_y and len(item['text'].strip()) > 8:
+                text = item['text'].strip()
+                if (not re.match(r'\d{1,2}/\d{1,2}/\d{4}', text) and
+                    not re.match(r'^\d+$', text) and
+                    not any(keyword in text.lower() for keyword in ['rang', 'insee', 'conv', 'sp', '%'])):
+                    potential_names.append((text, item['y']))
+        potential_names.sort(key=lambda x: x[1])
+        print(f"[INFO] {len(potential_names)} noms candidats détectés après l'en-tête")
 
-            if min_dist > 30:  
-                closest_note_text = ""
+        used_y_positions = set()
+        beneficiaires_dicts = self.extract_beneficiaires(textfromapp)
+        beneficiaires = [b["nom_complet"] for b in beneficiaires_dicts]
+        print(f"[INFO] Bénéficiaires attendus : {beneficiaires}")
+
+        # Associer bénéficiaires détectés
+        for benef_name in beneficiaires:
+            best_match = None
+            best_score = 0
+            for detected_text, y_pos in potential_names:
+                if y_pos in used_y_positions:
+                    continue
+                benef_upper = benef_name.upper()
+                detected_upper = detected_text.upper()
+                score = 0
+                if benef_upper == detected_upper:
+                    score = 1.0
+                elif benef_upper in detected_upper:
+                    score = len(benef_upper) / len(detected_upper)
+                elif detected_upper in benef_upper:
+                    score = len(detected_upper) / len(benef_upper)
+                else:
+                    from difflib import get_close_matches
+                    matches = get_close_matches(benef_upper, [detected_upper], n=1, cutoff=0.6)
+                    if matches:
+                        score = 0.7
+                if score > best_score:
+                    best_score = score
+                    best_match = (detected_text, y_pos)
+            if best_score > 0.5:
+                beneficiaires_y[benef_name] = best_match[1]
+                used_y_positions.add(best_match[1])
+                print(f"[MATCH] Bénéficiaire '{benef_name}' → '{best_match[0]}' à Y={best_match[1]:.1f} (score: {best_score:.2f})")
             else:
-                closest_note_text = closest_note['text']
+                print(f"[WARN] Bénéficiaire '{benef_name}' non trouvé, assignation par défaut")
+                beneficiaires_y[benef_name] = -9999
 
-            assoc.append({
-                "Prestation": p['text'],
-                "Note": closest_note_text,
-                "Position_X": p['x']
-            })
+        # Association prestations et notes
+        result_dict = {}
+        i = 2
+        for benef_name, y_center in beneficiaires_y.items():
+            if y_center == -9999:
+                result_dict[benef_name] = []
+                continue
+            benef_prestations = []
+            benef_notes = []
+
+            y_positions = [item['y'] for item in items]
+            y_positions.sort()
+            if len(y_positions) > 1:
+                spacings = [y_positions[i+1] - y_positions[i] for i in range(len(y_positions)-1)]
+                avg_spacing = np.mean([s for s in spacings if s > 5])
+                tolerance = avg_spacing * i
+                i = i * 2
+            else:
+                tolerance = 50
+            print(f"[INFO] Tolérance verticale pour {benef_name}: {tolerance:.1f} pixels")
+
+            for item in items:
+                if abs(item['y'] - y_center) < tolerance:
+                    if item['text'] in prestations_keywords:
+                        benef_prestations.append(item)
+                    elif item['text'].startswith("(") and item['text'].endswith(")"):
+                        benef_notes.append(item)
+            print(f"[INFO] Bénéficiaire '{benef_name}': {len(benef_prestations)} prestations, {len(benef_notes)} notes détectées")
+
+            benef_prestations.sort(key=lambda x: x['x'])
+            benef_notes.sort(key=lambda x: x['x'])
+
+            assoc = []
+            for p in benef_prestations:
+                closest_note = None
+                min_dist = float('inf')
+                for n in benef_notes:
+                    dist = abs(p['x'] - n['x'])
+                    if dist < min_dist:
+                        min_dist = dist
+                        closest_note = n
+                horiz_tolerance = 50
+                closest_note_text = closest_note['text'] if closest_note and min_dist < horiz_tolerance else ""
+                assoc.append({
+                    "Prestation": p['text'],
+                    "Note": closest_note_text,
+                    "Position_X": p['x']
+                })
+            result_dict[benef_name] = assoc
 
         # Convertir en JSON
-        json_output = json.dumps(assoc, indent=4, ensure_ascii=False)
+        json_output = json.dumps(result_dict, indent=4, ensure_ascii=False)
 
-        # Déterminer le nom de sortie (même que l'image mais .json)
+        # Sauvegarder JSON
         base_name = os.path.splitext(os.path.basename(image_path))[0]
         output_filename = f"{base_name}.json"
         output_path = os.path.join(os.getcwd(), output_filename)
-
-        # Sauvegarde du JSON
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(json_output)
+        print(f"[INFO] JSON sauvegardé : {output_path}")
 
         return json_output
+
+
     
 def main():
     """Main function to run as a standalone script"""
