@@ -821,6 +821,33 @@ class GeneralizedOCRProcessor:
 
         return all_prestations
 
+    def extract_codes_raw(self,text: str) -> List[List[str]]:
+        """
+        Extrait uniquement les codes 'raw' (colonnes) pour chaque bénéficiaire.
+        Retourne une liste de listes : [[codes_benef1], [codes_benef2], ...]
+        """
+        all_codes = []
+
+        # --- Extraire colonnes (entêtes) ---
+        columns_match = re.search(r"Nom\s*-\s*Prénom\s+([^\r\n]+)", text)
+        raw_columns = columns_match.group(1).split() if columns_match else []
+        columns = [re.sub(r'[^A-Za-zÀ-ÖØ-öø-ÿ0-9/:]', '', c) for c in raw_columns if c.strip()]  # Garder slash et deux-points
+
+        # --- Pattern pour une ligne bénéficiaire + la ligne de valeurs ---
+        line_pattern = re.compile(
+            r"(?:\n|\r)([A-ZÉÈÀÂÎÔÛÇ][A-Za-zÉÈÀÂÎÔÛÇa-z\- ]+)\s+((?:\d+(?:/\d+)+|\d+%|PEC)(?:\s+(?:\d+(?:/\d+)+|\d+%|PEC))*)",
+            re.MULTILINE
+        )
+
+        for match in line_pattern.finditer(text):
+            values_line = match.group(2).split()
+            # On ne s'occupe pas des notes ni des descriptions ici
+            codes_benef = columns[:len(values_line)]  # On prend autant de colonnes que de valeurs
+            all_codes.append(codes_benef)
+
+        return all_codes
+    
+
 
     def normalize_beneficiaires(self,text: str) -> str:
         lines = text.splitlines()
@@ -864,7 +891,7 @@ class GeneralizedOCRProcessor:
             if not text or len(text.strip()) < 100:
                 logger.info("Insufficient text extracted, using OCR...")
                 text = self.ocr_from_pdf(str(file_path))
-        
+         
         elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']:
             # For image files, use OCR directly
             text = self.ocr_from_image(str(file_path))
@@ -885,6 +912,8 @@ class GeneralizedOCRProcessor:
         
         # Merge results
         final_data = self.merge_extracted_data(regex_data, ner_data)
+
+                    
         result_paddle = None  # si tu veux stocker résultats bruts PaddleOCR
         result_easyocr = None  # si tu veux stocker résultats bruts EasyOCR
         tesseract_text = text
@@ -895,12 +924,98 @@ class GeneralizedOCRProcessor:
             tesseract_text=tesseract_text, 
             extracted_data=final_data
         )
+
         # Add raw text for debugging (truncated)
         final_data["raw_text_preview"] = text[:500] + "..." if len(text) > 500 else text
 
 
         return final_data
+    
+    def extract_prestations_notes(self,image_path: str) -> str:
+        """
+        Extrait les prestations et leurs notes associées à partir d'une image OCRisée,
+        retourne un JSON et le sauvegarde dans un fichier portant le même nom que l'image.
+        
+        Args:
+            image_path (str): chemin de l'image
+        
+        Returns:
+            str: JSON formaté contenant les prestations et leurs notes
+        """
+        result = ocr.predict(image_path)
+        data = result[0]
 
+        texts = data['rec_texts']
+        boxes = data['rec_boxes']
+
+        # Construire une liste d'items avec positions X/Y
+        items = []
+        for t, box in zip(texts, boxes):
+            box = np.array(box, dtype=float).reshape(-1, 2)
+            x_center = np.mean(box[:, 0])
+            y_center = np.mean(box[:, 1])
+            items.append({"text": t, "x": x_center, "y": y_center})
+
+        # Détection automatique des prestations
+        def detect_prestation_keywords(items):
+            prestation_pattern = r'^[A-Z]{3,4}(?:\s+[A-Z]{2,3})?$'
+            prestations = []
+            for item in items:
+                if re.match(prestation_pattern, item['text']):
+                    prestations.append(item['text'])
+            prestations = list(set([p for p in prestations if len(p) >= 3]))
+            return prestations
+
+        prestations_keywords = detect_prestation_keywords(items)
+
+        if not prestations_keywords:
+            prestations_keywords = ["PHAR","MED","RLAX","SAGE","EXTE","CSTE","HOSP",
+                                    "OPTI","DESO","DEPR","AUDI","DIV","SVIL","TRAN"]
+
+        # Séparer prestations et notes
+        prestations = [i for i in items if i['text'] in prestations_keywords]
+        notes = [i for i in items if i['text'].startswith("(") and i['text'].endswith(")")]
+
+        # Trier horizontalement
+        prestations = sorted(prestations, key=lambda x: x['x'])
+        notes = sorted(notes, key=lambda x: x['x'])
+
+        # Associer prestations et notes
+        assoc = []
+        for p in prestations:
+            closest_note = None
+            min_dist = float('inf')
+            for n in notes:
+                dist = abs(p['x'] - n['x'])
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_note = n
+
+            if min_dist > 30:  
+                closest_note_text = ""
+            else:
+                closest_note_text = closest_note['text']
+
+            assoc.append({
+                "Prestation": p['text'],
+                "Note": closest_note_text,
+                "Position_X": p['x']
+            })
+
+        # Convertir en JSON
+        json_output = json.dumps(assoc, indent=4, ensure_ascii=False)
+
+        # Déterminer le nom de sortie (même que l'image mais .json)
+        base_name = os.path.splitext(os.path.basename(image_path))[0]
+        output_filename = f"{base_name}.json"
+        output_path = os.path.join(os.getcwd(), output_filename)
+
+        # Sauvegarde du JSON
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(json_output)
+
+        return json_output
+    
 def main():
     """Main function to run as a standalone script"""
     import sys
