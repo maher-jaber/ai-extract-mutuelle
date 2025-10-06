@@ -1,0 +1,581 @@
+{
+  "adresse": null,
+  "beneficiaires": [
+    {
+      "date_naissance": "08/07/1980",
+      "nom_complet": "DE FELICE GONZA SEVRINE",
+      "prestations": [
+        {
+          "code": "PHAR",
+          "description": "MED",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "PHAR: Pharmacie Remboursable"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100/100/100"
+        },
+        {
+          "code": "MED",
+          "description": "Médecins généralistes, Médecins",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "MED: Médecin Généraliste et Spécialiste"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "SVIL",
+          "description": "CSTE",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "SVIL: Sage femme, Laboratoire, Radiologie, Auxiliaires Médicaux, Fournisseur sauf opticien et audioprothésiste"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "CSTE",
+          "description": "Centres de Santé hors dentaire",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "CSTE: Centre de Santé Hors Dentaire"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "TRAN",
+          "description": "EXTE",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "TRAN: Transporteur Sanitaire"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "EXTE",
+          "description": "Soins externes sauf prothèse dentaire",
+          "extra_descriptions": [
+            "IS: Isanté",
+            "EXTE: Soins Externe sauf prothèse dentaire"
+          ],
+          "label": "IS/ROC:SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "DESO",
+          "description": "DEPR",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "DESO: Soins Dentaires"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "DEPR",
+          "description": "Prothèses Dentaires aux professionnels de santé",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "DEPR: Prothèse Dentaires"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        },
+        {
+          "code": "HOSP",
+          "description": "OPTI",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "HOSP: Hospitalisation hors soins externes"
+          ],
+          "label": "OC/ROC:SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "PEC"
+        },
+        {
+          "code": "OPTI",
+          "description": "Opticien",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "OPTI: Optique"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        },
+        {
+          "code": "AUDI",
+          "description": "Date naiss",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "AUDI: Audioprothèse"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        }
+      ]
+    },
+    {
+      "date_naissance": "15/12/2012",
+      "nom_complet": "PRIETO DE FELIC RAFAEL ERN",
+      "prestations": [
+        {
+          "code": "PHAR",
+          "description": "MED",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "PHAR: Pharmacie Remboursable"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100/100/100"
+        },
+        {
+          "code": "MED",
+          "description": "Médecins généralistes, Médecins",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "MED: Médecin Généraliste et Spécialiste"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "SVIL",
+          "description": "CSTE",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "SVIL: Sage femme, Laboratoire, Radiologie, Auxiliaires Médicaux, Fournisseur sauf opticien et audioprothésiste"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "CSTE",
+          "description": "Centres de Santé hors dentaire",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "CSTE: Centre de Santé Hors Dentaire"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "TRAN",
+          "description": "EXTE",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "TRAN: Transporteur Sanitaire"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "EXTE",
+          "description": "Soins externes sauf prothèse dentaire",
+          "extra_descriptions": [
+            "IS: Isanté",
+            "EXTE: Soins Externe sauf prothèse dentaire"
+          ],
+          "label": "IS/ROC:SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "DESO",
+          "description": "DEPR",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "DESO: Soins Dentaires"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "DEPR",
+          "description": "Prothèses Dentaires aux professionnels de santé",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "DEPR: Prothèse Dentaires"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        },
+        {
+          "code": "HOSP",
+          "description": "OPTI",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "HOSP: Hospitalisation hors soins externes"
+          ],
+          "label": "OC/ROC:SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "PEC"
+        },
+        {
+          "code": "OPTI",
+          "description": "Opticien",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "OPTI: Optique"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        },
+        {
+          "code": "AUDI",
+          "description": "Date naiss",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "AUDI: Audioprothèse"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        }
+      ]
+    },
+    {
+      "date_naissance": "11/09/2015",
+      "nom_complet": "PRIETO DE FELIC VALENTINA",
+      "prestations": [
+        {
+          "code": "PHAR",
+          "description": "MED",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "PHAR: Pharmacie Remboursable"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100/100/100"
+        },
+        {
+          "code": "MED",
+          "description": "Médecins généralistes, Médecins",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "MED: Médecin Généraliste et Spécialiste"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "SVIL",
+          "description": "CSTE",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "SVIL: Sage femme, Laboratoire, Radiologie, Auxiliaires Médicaux, Fournisseur sauf opticien et audioprothésiste"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "CSTE",
+          "description": "Centres de Santé hors dentaire",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "CSTE: Centre de Santé Hors Dentaire"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "TRAN",
+          "description": "EXTE",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "TRAN: Transporteur Sanitaire"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "EXTE",
+          "description": "Soins externes sauf prothèse dentaire",
+          "extra_descriptions": [
+            "IS: Isanté",
+            "EXTE: Soins Externe sauf prothèse dentaire"
+          ],
+          "label": "IS/ROC:SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "DESO",
+          "description": "DEPR",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "DESO: Soins Dentaires"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "DEPR",
+          "description": "Prothèses Dentaires aux professionnels de santé",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "DEPR: Prothèse Dentaires"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        },
+        {
+          "code": "HOSP",
+          "description": "OPTI",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "HOSP: Hospitalisation hors soins externes"
+          ],
+          "label": "OC/ROC:SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "PEC"
+        },
+        {
+          "code": "OPTI",
+          "description": "Opticien",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "OPTI: Optique"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        },
+        {
+          "code": "AUDI",
+          "description": "Date naiss",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "AUDI: Audioprothèse"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        }
+      ]
+    },
+    {
+      "date_naissance": "16/01/2017",
+      "nom_complet": "PRIETO DE FELIC ALEXANDRA",
+      "prestations": [
+        {
+          "code": "PHAR",
+          "description": "MED",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "PHAR: Pharmacie Remboursable"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100/100/100"
+        },
+        {
+          "code": "MED",
+          "description": "Médecins généralistes, Médecins",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "MED: Médecin Généraliste et Spécialiste"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "SVIL",
+          "description": "CSTE",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "SVIL: Sage femme, Laboratoire, Radiologie, Auxiliaires Médicaux, Fournisseur sauf opticien et audioprothésiste"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "CSTE",
+          "description": "Centres de Santé hors dentaire",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "CSTE: Centre de Santé Hors Dentaire"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "TRAN",
+          "description": "EXTE",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "TRAN: Transporteur Sanitaire"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "EXTE",
+          "description": "Soins externes sauf prothèse dentaire",
+          "extra_descriptions": [
+            "IS: Isanté",
+            "EXTE: Soins Externe sauf prothèse dentaire"
+          ],
+          "label": "IS/ROC:SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "DESO",
+          "description": "DEPR",
+          "extra_descriptions": [
+            "SP: SP Santé",
+            "DESO: Soins Dentaires"
+          ],
+          "label": "SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "100%"
+        },
+        {
+          "code": "DEPR",
+          "description": "Prothèses Dentaires aux professionnels de santé",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "DEPR: Prothèse Dentaires"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        },
+        {
+          "code": "HOSP",
+          "description": "OPTI",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "HOSP: Hospitalisation hors soins externes"
+          ],
+          "label": "OC/ROC:SP",
+          "note": null,
+          "note_description": null,
+          "valeur": "PEC"
+        },
+        {
+          "code": "OPTI",
+          "description": "Opticien",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "OPTI: Optique"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        },
+        {
+          "code": "AUDI",
+          "description": "Date naiss",
+          "extra_descriptions": [
+            "OC: Organisme Complémentaire",
+            "IT: Itelis",
+            "AUDI: Audioprothèse"
+          ],
+          "label": "OC/IT",
+          "note": "(6)",
+          "note_description": "Note détectée OCR: (6)",
+          "valeur": "PEC"
+        }
+      ]
+    }
+  ],
+  "confidence": 0.817,
+  "date_debut_validite": "01/01/2025",
+  "date_fin_validite": "31/12/2025",
+  "date_naissance": "08/07/1980",
+  "extraction_method": "generalized_regex",
+  "mutuelle": null,
+  "nom_complet": "DE FELICE GONZA SEVRINE",
+  "numero_adherent": "AO72TSXF",
+  "numero_amc": "0401398",
+  "numero_contrat": "0000000000062474",
+  "numero_securite_sociale": "280079942401584",
+  "raw_text_preview": "Page 1:\n\nSignification de la codification : Comment contacter le service Frais de\nAUDI Audioprothèse soins de Santé ?\nCSTE Centres de Santé hors dentaire Points de contact réservés UNIQUEMENT\nDEPR Prothèses Dentaires aux professionnels de santé\nDESO Soins dentaires www.mercernet.fr ED M e rc eG r\nEXTE Soins externes sauf prothèse dentaire sante.pro@mercer.com - Fax : 03 25 84 89 49\nHOSP Hospitalisation hors soins externes\nMED Médecins généralistes, Médecins Contacts réservés aux assurés\nspéciali..."
+}

@@ -325,9 +325,7 @@ class GeneralizedOCRProcessor:
         
         # original_text = self.normalize_text_1(original_text)
         # original_text = self.normalize_text_2(original_text)
-        print("\n====== ORIGINAL TEXT ======")
-        print(original_text)  # Limiter si très long
-        print("============================\n")
+
         data = {
             "nom_complet": None,  # Changé de "nom" et "prenom" à "nom_complet"
             "numero_securite_sociale": None,
@@ -373,7 +371,8 @@ class GeneralizedOCRProcessor:
         amc_patterns = [
             r'N[°ºoO]\s*AMC\s*[:\-]?\s*(?:0\s*)?(\d{6,})',
             r'AMC\s*[:\-]?\s*(?:0\s*)?(\d{6,})',
-            r'SV-DRE-TP AMC\s*:\s*(?:0\s*)?(\d{6,})'  # Pour VIAMEDIS
+            r'SV-DRE-TP AMC\s*:\s*(?:0\s*)?(\d{6,})',  # Pour VIAMEDIS
+            r'A N°AMC\s*:\s*(\d{3}\s?\d{2}\s?\d{3})'        
         ]
         
         # Patterns adhérent
@@ -571,7 +570,23 @@ class GeneralizedOCRProcessor:
 
     def extract_beneficiaires(self, text: str) -> list:
         beneficiaires = []
-
+        # --- NOUVEAU: Détection format alternatif ---
+        alt_format_match = re.search(
+            r"([A-Z]{2,}\s+[A-Z]{2,}(?:\s+[A-Z]{2,})*)\s*\n\s*([A-Z][a-z]+ [A-Z][a-z]+)\s+([A-Z]+)(?:\s+([\d/%PEC!?]+))+\s+(\d{2}/\d{2}/\d{4})",
+            text, re.MULTILINE
+        )
+        
+        if alt_format_match:
+            nom_complet = alt_format_match.group(2)
+            date_naissance = alt_format_match.group(5).replace(".", "/").replace("-", "/")
+            
+            beneficiaire = {
+                "nom_complet": nom_complet,
+                "date_naissance": date_naissance
+            }
+            
+            beneficiaires.append(beneficiaire)
+            return beneficiaires
         # Regex améliorée pour éviter les artefacts comme "SC"
         pattern = r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{3,})(?:\s+[0-9\/%PEC@() ]+)?\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
 
@@ -672,8 +687,11 @@ class GeneralizedOCRProcessor:
         d'après le dictionnaire officiel des codes et labels.
         """
         # --- Dictionnaires de référence ---
-        valid_codes = set(self.codification["codes"].keys())
-        valid_labels = set(self.codification["codes"].keys())
+        base_codes = set(self.codification["codes"].keys())
+
+        # Étendre avec les variantes étoilées
+        valid_codes = base_codes | {c + "*" for c in base_codes}
+        valid_labels = base_codes | {c + "*" for c in base_codes}
         
         # --- Corrections spécifiques fréquentes OCR ---
         replacements = {
@@ -730,12 +748,53 @@ class GeneralizedOCRProcessor:
         Retourne une liste : [prestations_benef1, prestations_benef2, ...]
         """
         all_prestations = []
-
+        alt_format_match = re.search(
+            r"([A-Z]{2,}\s+[A-Z]{2,}(?:\s+[A-Z]{2,})*)\s*\n\s*([A-Z][a-z]+ [A-Z][a-z]+)\s+([A-Z]+)(?:\s+([\d/%PEC!?]+))+\s+(\d{2}/\d{2}/\d{4})",
+            text, re.MULTILINE
+        )
+        
+        if alt_format_match:
+            # Format alternatif détecté
+            prestations_line = alt_format_match.group(1).split()
+            nom_complet = alt_format_match.group(2)
+            valeurs_line = []
+            
+            # Extraire toutes les valeurs après le nom
+            values_section = text[alt_format_match.start(3):alt_format_match.end()]
+            valeurs_line = re.findall(r'([A-Z]+|[\d/%PEC!?]+)', values_section)
+            valeurs_line = [v for v in valeurs_line if v not in [nom_complet.split()[0], nom_complet.split()[1]]]
+            
+            date_naissance = alt_format_match.group(5)
+            
+            prestations = []
+            for i in range(min(len(prestations_line), len(valeurs_line))):
+                code_raw = prestations_line[i]
+                valeur = valeurs_line[i]
+                
+                # Nettoyer la valeur
+                valeur = re.sub(r'[!?]', '', valeur)
+                
+                # Recherche dans la codification
+                description = self.fuzzy_lookup(code_raw, self.codification.get("codes", {}))
+                
+                prestations.append({
+                    "code": code_raw,
+                    "label": code_raw,  # Dans ce format, le code est aussi le label
+                    "valeur": valeur,
+                    "description": description,
+                    "extra_descriptions": [f"{code_raw}: {description}"] if description else [],
+                    "note": None,
+                    "note_description": None
+                })
+            
+            all_prestations.append(prestations)
+            return all_prestations
         # --- Extraire colonnes (entêtes) ---
-        columns_match = re.search(r"Nom\s*-\s*Prénom\s+([^\r\n]+)", text)
+        print("text******",text)
+        columns_match = re.search(r"N?om\s*-\s*Prénom\s+([^\r\n]+)", text)
         raw_columns = columns_match.group(1).split() if columns_match else []
-        columns = [re.sub(r'[^A-Za-zÀ-ÖØ-öø-ÿ0-9/:]', '', c) for c in raw_columns if c.strip()]  # Garder slash et deux-points
-
+        columns = [re.sub(r'[^A-Za-zÀ-ÖØ-öø-ÿ0-9/:*]', '', c) for c in raw_columns if c.strip()]  # Garder slash et deux-points
+        print("******* Colonnes extraites :", ", ".join(columns))
         # --- Extraire labels (codes SP, PEC, etc.) ---
         labels = []
         date_line_match = re.search(r"^Date\s*(?:naiss|de naissance)[^\r\n]+", text, re.IGNORECASE | re.MULTILINE)
@@ -973,7 +1032,6 @@ class GeneralizedOCRProcessor:
 
         texts = data['rec_texts']
         boxes = data['rec_boxes']
-        print(f"[INFO] {len(texts)} textes détectés par OCR")
 
         # Construire une liste d'items avec positions X/Y
         items = []
@@ -983,51 +1041,112 @@ class GeneralizedOCRProcessor:
             y_center = np.mean(box[:, 1])
             items.append({"text": t, "x": x_center, "y": y_center})
 
-        # Extraction des codes raw
-        all_prestations_kw = self.extract_prestations_with_labels(textfromapp)
-        prestations_keywords = [prestation["code"] for prestations_benef in all_prestations_kw for prestation in prestations_benef]
-        print(f"[INFO] Prestations détectées : {prestations_keywords}")
+        # Détection automatique des prestations
+        def extract_codes_raw(full_text: str) -> List[str]:
+            prestations = []
+            capture = False
+            lines = full_text.splitlines()
+            
+            print("\nAnalyse ligne par ligne:")
+            print("-" * 40)
+            
+            for i, line in enumerate(lines):
+                line = line.strip()
+                print(f"Ligne {i+1}: '{line}'")
+                
+                # Détecter l'en-tête bénéficiaire
+                if re.search(r"^(B[ée]n[ée]ficiaire|N?om\s*-?\s*Pr[ée]nom|B[ée]n[ée]f\.)", line, re.IGNORECASE):
+                    capture = True
+                    print(f"  → DÉBUT CAPTURE (en-tête détecté)")
+                    continue
+                    
+                if capture:
+                    # CORRECTION: S'ARRÊTER si on trouve une variante de "- Prénom"
+                    if re.search(r".*-\s*Pr[ée]nom.*", line, re.IGNORECASE):
+                        print(f"  → FIN CAPTURE (variante '- Prénom' détectée: '{line}')")
+                        break
+                        
+                    # S'arrêter aussi sur les autres patterns de fin de section
+                    if re.search(r"^(date\s+naiss|naissance|ddn|Date.*naissance|date.*naissance|total|montant|sous\s+total)", line, re.IGNORECASE):
+                        print(f"  → FIN CAPTURE (fin de section détectée: '{line}')")
+                        break
+                        
+                    if line and line.isupper() and len(line) <= 6 and not line.startswith(('(', ')')):
+                        prestations.append(line)
+                        print(f"  → PRESTATION DÉTECTÉE: '{line}'")
+                    elif line:
+                        print(f"  → Ignoré: '{line}' (pas une prestation)")
+            
+            print(f"\nPrestations détectées: {prestations}")
+            print("=" * 60)
+            return prestations
+
+        full_text = "\n".join(texts)
+        prestations_keywords = extract_codes_raw(full_text)
 
         # Séparer prestations et notes
         prestations_items = [i for i in items if i['text'] in prestations_keywords]
         notes_items = [i for i in items if i['text'].startswith("(") and i['text'].endswith(")")]
-        print(f"[INFO] {len(prestations_items)} prestations et {len(notes_items)} notes identifiées")
 
-        # Détection des bénéficiaires
+        # CORRECTION: TRIER LES PRESTATIONS SELON X AVANT TRAITEMENT
+        prestations_items.sort(key=lambda x: x['x'])
+        notes_items.sort(key=lambda x: x['x'])
+        prestations_items = list({item['text']: item for item in prestations_items}.values())
+        print(f"\nItems prestations trouvés ({len(prestations_items)}):")
+        for p in prestations_items:
+            print(f"  Prestation: '{p['text']}' à position (x:{p['x']:.1f}, y:{p['y']:.1f})")
+        
+        print(f"\nItems notes trouvés ({len(notes_items)}):")
+        for n in notes_items:
+            print(f"  Note: '{n['text']}' à position (x:{n['x']:.1f}, y:{n['y']:.1f})")
+
+        # DÉTECTION ROBUSTE DES BÉNÉFICIAIRES
         beneficiaires_y = {}
+        
+        # 1. Trouver la section des bénéficiaires par l'en-tête
         header_y = None
         for item in items:
             if re.search(r"B[ée]n[ée]ficiaire|Nom.*Pr[ée]nom", item['text'], re.IGNORECASE):
                 header_y = item['y']
-                print(f"[INFO] En-tête bénéficiaire trouvé à Y={header_y:.1f}")
+                print(f"\nEn-tête bénéficiaire trouvé: '{item['text']}' à Y={header_y:.1f}")
                 break
-
+        
+        # 2. Collecter tous les textes longs (noms potentiels) après l'en-tête
         potential_names = []
         for item in items:
             if header_y and item['y'] > header_y and len(item['text'].strip()) > 8:
+                # Exclure les dates, numéros, etc.
                 text = item['text'].strip()
                 if (not re.match(r'\d{1,2}/\d{1,2}/\d{4}', text) and
                     not re.match(r'^\d+$', text) and
                     not any(keyword in text.lower() for keyword in ['rang', 'insee', 'conv', 'sp', '%'])):
                     potential_names.append((text, item['y']))
+        
+        # 3. Trier par position Y (ordre naturel du document)
         potential_names.sort(key=lambda x: x[1])
-        print(f"[INFO] {len(potential_names)} noms candidats détectés après l'en-tête")
-
+        
+        print(f"\nNoms potentiels détectés ({len(potential_names)}):")
+        for name, y_pos in potential_names:
+            print(f"  '{name}' à Y={y_pos:.1f}")
+        
+        # 4. Associer chaque bénéficiaire à un nom détecté
         used_y_positions = set()
         beneficiaires_dicts = self.extract_beneficiaires(textfromapp)
-        beneficiaires = [b["nom_complet"] for b in beneficiaires_dicts]
-        print(f"[INFO] Bénéficiaires attendus : {beneficiaires}")
-
-        # Associer bénéficiaires détectés
+        beneficiaires = [b["nom_complet"] for b in beneficiaires_dicts]        
         for benef_name in beneficiaires:
             best_match = None
             best_score = 0
+            
             for detected_text, y_pos in potential_names:
                 if y_pos in used_y_positions:
                     continue
+                    
+                # Calculer le score de similarité
                 benef_upper = benef_name.upper()
                 detected_upper = detected_text.upper()
+                
                 score = 0
+                # Match exact ou inclusion
                 if benef_upper == detected_upper:
                     score = 1.0
                 elif benef_upper in detected_upper:
@@ -1035,53 +1154,79 @@ class GeneralizedOCRProcessor:
                 elif detected_upper in benef_upper:
                     score = len(detected_upper) / len(benef_upper)
                 else:
-                    from difflib import get_close_matches
+                    # Match partiel avec difflib
                     matches = get_close_matches(benef_upper, [detected_upper], n=1, cutoff=0.6)
                     if matches:
                         score = 0.7
+                
                 if score > best_score:
                     best_score = score
                     best_match = (detected_text, y_pos)
+            
             if best_score > 0.5:
                 beneficiaires_y[benef_name] = best_match[1]
                 used_y_positions.add(best_match[1])
-                print(f"[MATCH] Bénéficiaire '{benef_name}' → '{best_match[0]}' à Y={best_match[1]:.1f} (score: {best_score:.2f})")
+                print(f"Bénéficiaire '{benef_name}' → '{best_match[0]}' à Y={best_match[1]:.1f} (score: {best_score:.2f})")
             else:
-                print(f"[WARN] Bénéficiaire '{benef_name}' non trouvé, assignation par défaut")
+                print(f"ATTENTION: Bénéficiaire '{benef_name}' non trouvé")
                 beneficiaires_y[benef_name] = -9999
 
-        # Association prestations et notes
+        # 5. Si certains bénéficiaires ne sont pas trouvés, essayer une approche par ordre
+        if len(beneficiaires_y) < len(beneficiaires) and len(potential_names) >= len(beneficiaires):
+            print("Tentative d'association par ordre...")
+            unused_names = [name for name in potential_names if name[1] not in used_y_positions]
+            unused_names.sort(key=lambda x: x[1])
+            
+            for i, benef_name in enumerate(beneficiaires):
+                if beneficiaires_y[benef_name] == -9999 and i < len(unused_names):
+                    y_pos = unused_names[i][1]
+                    beneficiaires_y[benef_name] = y_pos
+                    print(f"Bénéficiaire '{benef_name}' → position Y={y_pos:.1f} (par ordre)")
+
+        # ASSOCIATION DES PRESTATIONS ET NOTES
         result_dict = {}
         i = 2
         for benef_name, y_center in beneficiaires_y.items():
             if y_center == -9999:
                 result_dict[benef_name] = []
                 continue
+
+            # Trouver les prestations et notes alignées verticalement
+            # Tolérance dynamique basée sur l'espacement moyen
             benef_prestations = []
             benef_notes = []
-
+            
+            # Calculer l'espacement moyen entre les lignes
             y_positions = [item['y'] for item in items]
             y_positions.sort()
+            
             if len(y_positions) > 1:
                 spacings = [y_positions[i+1] - y_positions[i] for i in range(len(y_positions)-1)]
-                avg_spacing = np.mean([s for s in spacings if s > 5])
+                avg_spacing = np.mean([s for s in spacings if s > 5])  # Exclure les petits écarts
                 tolerance = avg_spacing * i
                 i = i * 2
             else:
-                tolerance = 50
-            print(f"[INFO] Tolérance verticale pour {benef_name}: {tolerance:.1f} pixels")
-
+                tolerance = 50  # Valeur par défaut
+            
+            print(f"\nRecherche pour {benef_name}:")
+            print(f"Centre Y: {y_center:.1f}, Tolérance: ±{tolerance:.1f}")
+            
             for item in items:
                 if abs(item['y'] - y_center) < tolerance:
                     if item['text'] in prestations_keywords:
                         benef_prestations.append(item)
+                        print(f"  Prestation trouvée: '{item['text']}' à Y={item['y']:.1f}")
                     elif item['text'].startswith("(") and item['text'].endswith(")"):
                         benef_notes.append(item)
-            print(f"[INFO] Bénéficiaire '{benef_name}': {len(benef_prestations)} prestations, {len(benef_notes)} notes détectées")
+                        print(f"  Note trouvée: '{item['text']}' à Y={item['y']:.1f}")
 
+            print(f"Bénéficiaire '{benef_name}': {len(benef_prestations)} prestations, {len(benef_notes)} notes")
+
+            # CORRECTION: TRIER HORIZONTALEMENT (déjà fait plus haut, mais on le refait pour être sûr)
             benef_prestations.sort(key=lambda x: x['x'])
             benef_notes.sort(key=lambda x: x['x'])
 
+            # Associer prestations et notes
             assoc = []
             for p in benef_prestations:
                 closest_note = None
@@ -1091,13 +1236,18 @@ class GeneralizedOCRProcessor:
                     if dist < min_dist:
                         min_dist = dist
                         closest_note = n
-                horiz_tolerance = 50
+                
+                # Tolérance horizontale dynamique
+                horiz_tolerance = 50  # pixels
                 closest_note_text = closest_note['text'] if closest_note and min_dist < horiz_tolerance else ""
                 assoc.append({
                     "Prestation": p['text'],
                     "Note": closest_note_text,
                     "Position_X": p['x']
                 })
+                
+                print(f"  Association: '{p['text']}' → '{closest_note_text}' (distance: {min_dist:.1f})")
+
             result_dict[benef_name] = assoc
 
         # Convertir en JSON
@@ -1109,7 +1259,6 @@ class GeneralizedOCRProcessor:
         output_path = os.path.join(os.getcwd(), output_filename)
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(json_output)
-        print(f"[INFO] JSON sauvegardé : {output_path}")
 
         return json_output
 

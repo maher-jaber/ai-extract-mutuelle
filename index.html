@@ -4,43 +4,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR Processor - Traitement de Documents Mutuelle</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Traitement PDF Mutuelle</title>
     <style>
         :root {
-            --primary: #4361ee;
-            --secondary: #3a0ca3;
-            --success: #4cc9f0;
-            --warning: #f72585;
-            --light: #f8f9fa;
-            --dark: #212529;
-            --gray: #6c757d;
-            --light-gray: #e9ecef;
-            --border-radius: 12px;
-            --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            --transition: all 0.3s ease;
-        }
-
-        .dark-mode {
-            --primary: #4cc9f0;
-            --secondary: #4361ee;
-            --light: #121212;
-            --dark: #f8f9fa;
-            --gray: #adb5bd;
-            --light-gray: #2d2d2d;
+            --primary-color: #3498db;
+            --success-color: #2ecc71;
+            --warning-color: #f39c12;
+            --danger-color: #e74c3c;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
         }
 
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         body {
-            background-color: var(--light);
-            color: var(--dark);
-            transition: var(--transition);
+            background-color: #f5f7fa;
+            color: #333;
             line-height: 1.6;
         }
 
@@ -51,744 +35,596 @@
         }
 
         header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 0;
+            text-align: center;
             margin-bottom: 30px;
-            border-bottom: 1px solid var(--light-gray);
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-
-        .logo i {
-            font-size: 2.5rem;
-            color: var(--primary);
-        }
-
-        .logo h1 {
-            font-size: 1.8rem;
-            font-weight: 700;
-            background: linear-gradient(45deg, var(--primary), var(--secondary));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .theme-switch {
-            position: relative;
-            display: inline-block;
-            width: 60px;
-            height: 30px;
-        }
-
-        .theme-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: var(--light-gray);
-            transition: var(--transition);
-            border-radius: 34px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 22px;
-            width: 22px;
-            left: 4px;
-            bottom: 4px;
+            padding: 20px;
             background-color: white;
-            transition: var(--transition);
-            border-radius: 50%;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
         }
 
-        input:checked+.slider {
-            background-color: var(--primary);
-        }
-
-        input:checked+.slider:before {
-            transform: translateX(30px);
-        }
-
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-        }
-
-        @media (max-width: 900px) {
-            .main-content {
-                grid-template-columns: 1fr;
-            }
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
         }
 
         .upload-section {
-            background: white;
+            background-color: white;
             padding: 30px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
-            transition: var(--transition);
-        }
-
-        .dark-mode .upload-section {
-            background: var(--light-gray);
-        }
-
-        .upload-area {
-            border: 2px dashed var(--primary);
-            border-radius: var(--border-radius);
-            padding: 40px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
             text-align: center;
-            cursor: pointer;
-            transition: var(--transition);
-            margin-bottom: 20px;
         }
 
-        .upload-area:hover {
-            background-color: rgba(67, 97, 238, 0.05);
-        }
-
-        .upload-area i {
-            font-size: 3rem;
-            color: var(--primary);
-            margin-bottom: 15px;
-        }
-
-        .upload-area h3 {
-            margin-bottom: 10px;
-            color: var(--dark);
-        }
-
-        .upload-area p {
-            color: var(--gray);
-            margin-bottom: 15px;
-        }
-
-        .btn {
+        .file-input-wrapper {
+            position: relative;
             display: inline-block;
-            padding: 12px 24px;
-            background: linear-gradient(45deg, var(--primary), var(--secondary));
-            color: white;
-            border: none;
-            border-radius: 50px;
-            cursor: pointer;
-            font-weight: 600;
-            transition: var(--transition);
-            text-decoration: none;
-        }
-
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+            margin: 20px 0;
         }
 
         .file-input {
-            display: none;
-        }
-
-        .results-section {
-            background: white;
-            padding: 30px;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
-            transition: var(--transition);
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .dark-mode .results-section {
-            background: var(--light-gray);
-        }
-
-        .section-title {
-            font-size: 1.5rem;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid var(--light-gray);
-            color: var(--dark);
-        }
-
-        .result-placeholder {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--gray);
-        }
-
-        .result-placeholder i {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            color: var(--light-gray);
-        }
-
-        .document-card {
-            background: white;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
-            margin-bottom: 20px;
-            overflow: hidden;
-            transition: var(--transition);
-        }
-
-        .dark-mode .document-card {
-            background: var(--dark);
-        }
-
-        .document-header {
-            padding: 15px 20px;
-            background: linear-gradient(45deg, var(--primary), var(--secondary));
-            color: white;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .document-body {
-            padding: 20px;
-        }
-
-        .info-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .info-item {
-            margin-bottom: 15px;
-        }
-
-        .info-label {
-            font-size: 0.85rem;
-            color: var(--gray);
-            margin-bottom: 5px;
-        }
-
-        .info-value {
-            font-weight: 600;
-            color: var(--dark);
-        }
-
-        .dark-mode .info-value {
-            color: var(--light);
-        }
-
-        .beneficiaries-section {
-            margin-top: 25px;
-        }
-
-        .beneficiary-item {
-            background: var(--light-gray);
-            border-radius: var(--border-radius);
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-
-        .dark-mode .beneficiary-item {
-            background: #2d2d2d;
-        }
-
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 1px solid var(--light-gray);
-        }
-
-        .tab {
-            padding: 10px 20px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
             cursor: pointer;
-            transition: var(--transition);
-            border-bottom: 3px solid transparent;
         }
 
-        .tab.active {
-            border-bottom: 3px solid var(--primary);
-            color: var(--primary);
-            font-weight: 600;
+        .file-input-label {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
         }
 
-        .tab-content {
-            display: none;
+        .file-input-label:hover {
+            background-color: #2980b9;
         }
 
-        .tab-content.active {
-            display: block;
+        .process-btn {
+            padding: 12px 24px;
+            background-color: var(--success-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+            margin-top: 10px;
         }
 
-        .prestation-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
+        .process-btn:hover {
+            background-color: #27ae60;
         }
 
-        .prestation-card {
-            background: white;
-            border-radius: var(--border-radius);
-            padding: 15px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            transition: var(--transition);
-        }
-
-        .dark-mode .prestation-card {
-            background: #2d2d2d;
-        }
-
-        .prestation-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-
-        .prestation-title {
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: var(--primary);
-        }
-
-        .prestation-value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--dark);
-        }
-
-        .dark-mode .prestation-value {
-            color: var(--light);
+        .process-btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
         }
 
         .loading {
             display: none;
-            text-align: center;
-            padding: 30px;
+            margin-top: 20px;
         }
 
-        .loading i {
-            font-size: 2rem;
-            color: var(--primary);
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: var(--primary-color);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
             animation: spin 1s linear infinite;
+            margin: 0 auto;
         }
 
         @keyframes spin {
-            0% {
-                transform: rotate(0deg);
-            }
-
-            100% {
+            to {
                 transform: rotate(360deg);
             }
         }
 
-        .history-section {
-            margin-top: 40px;
+        .results-section {
+            display: none;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
         }
 
-        .history-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 20px;
+        .confidence-badge {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 20px;
         }
 
-        .toast {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 15px 25px;
-            background: var(--dark);
+        .confidence-low {
+            background-color: var(--danger-color);
             color: white;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
-            transform: translateY(100px);
-            opacity: 0;
-            transition: all 0.3s ease;
-            z-index: 1000;
         }
 
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
+        .confidence-medium {
+            background-color: var(--warning-color);
+            color: white;
         }
 
-        .toast.success {
-            background: #4caf50;
+        .confidence-high {
+            background-color: var(--success-color);
+            color: white;
         }
 
-        .toast.error {
-            background: #f44336;
+        .accordion {
+            margin-top: 20px;
+        }
+
+        .accordion-item {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+
+        .accordion-header {
+            padding: 15px;
+            background-color: var(--light-color);
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .accordion-header:hover {
+            background-color: #e9ecef;
+        }
+
+        .accordion-content {
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .accordion-content.active {
+            max-height: 500px;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .beneficiary-info {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .prestation-item {
+            background-color: #f8f9fa;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .prestation-code {
+            font-weight: bold;
+            color: var(--primary-color);
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+
+        .prestation-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .prestation-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .prestation-detail {
+            font-size: 14px;
+        }
+
+        .prestation-detail strong {
+            color: #333;
+        }
+
+        .note-badge {
+            display: inline-block;
+            background-color: var(--warning-color);
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .note-description {
+            background-color: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 8px;
+            font-size: 13px;
+            color: #856404;
+        }
+
+        .extra-descriptions {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed #ddd;
+        }
+
+        .extra-description {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        .json-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 4px;
+            margin-top: 30px;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background-color: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .error-message {
+            color: var(--danger-color);
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #ffeaea;
+            border-radius: 4px;
+            display: none;
         }
 
         footer {
             text-align: center;
-            padding: 30px 0;
-            margin-top: 50px;
-            color: var(--gray);
-            border-top: 1px solid var(--light-gray);
+            margin-top: 30px;
+            padding: 20px;
+            color: #666;
+            font-size: 14px;
         }
-
-       
     </style>
 </head>
 
 <body>
     <div class="container">
         <header>
-            <div class="logo">
-                <i class="fas fa-file-medical-alt"></i>
-                <h1>OCR Processor</h1>
-            </div>
-            <label class="theme-switch">
-                <input type="checkbox" id="theme-toggle">
-                <span class="slider"></span>
-            </label>
+            <h1>Traitement de PDF Mutuelle</h1>
+            <p>Téléchargez votre PDF de mutuelle pour obtenir les informations structurées</p>
         </header>
+        <section class="upload-section" id="loginSection">
+            <h2>Étape 0 : Connexion</h2>
+            <input type="text" id="username" placeholder="Nom d'utilisateur">
+            <input type="password" id="password" placeholder="Mot de passe">
+            <button id="loginBtn" class="process-btn">Se connecter</button>
+            <div class="error-message" id="loginError"></div>
+        </section>
+        <section class="upload-section">
+            <h2>Étape 1 : Sélectionnez votre PDF</h2>
+            <div class="file-input-wrapper">
+                <input type="file" id="pdfFile" class="file-input" accept=".pdf">
+                <label for="pdfFile" class="file-input-label">Choisir un fichier PDF</label>
+            </div>
+            <p id="fileName">Aucun fichier sélectionné</p>
 
-        <div class="main-content">
-            <div class="upload-section">
-                <h2 class="section-title">Nouveau Document</h2>
-                <div class="upload-area" id="drop-zone">
-                    <i class="fas fa-cloud-upload-alt"></i>
-                    <h3>Glissez-déposez votre fichier ici</h3>
-                    <p>ou</p>
-                    <button class="btn" id="browse-btn">Parcourir les fichiers</button>
-                    <input type="file" id="file-input" class="file-input" accept=".pdf,.png,.jpg,.jpeg,.tiff,.bmp">
-                </div>
-                <div class="supported-formats">
-                    <p>Formats supportés: PDF, PNG, JPG, JPEG, TIFF, BMP</p>
-                </div>
+            <button id="processBtn" class="process-btn" disabled>Traiter le PDF</button>
 
-                <div class="loading" id="loading">
-                    <i class="fas fa-spinner"></i>
-                    <p>Traitement du document en cours...</p>
-                </div>
+            <div class="loading" id="loadingIndicator">
+                <div class="spinner"></div>
+                <p>Traitement en cours...</p>
             </div>
 
-            <div class="results-section">
-                <h2 class="section-title">Résultats</h2>
-                <div class="tabs">
-                    <div class="tab active" data-tab="extracted">Informations Extraites</div>
-                    <div class="tab" data-tab="raw">Texte Brut</div>
-                </div>
+            <div class="error-message" id="errorMessage"></div>
+        </section>
 
-                <div class="tab-content active" id="extracted-tab">
-                    <div class="result-placeholder" id="result-placeholder">
-                        <i class="fas fa-file-alt"></i>
-                        <p>Aucun document traité. Uploader un fichier pour commencer.</p>
-                    </div>
+        <section class="results-section" id="resultsSection">
+            <h2>Résultats du traitement</h2>
 
-                    <div id="extracted-results" style="display: none;">
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <div class="info-label">Mutuelle</div>
-                                <div class="info-value" id="mutuelle-value">-</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Nom</div>
-                                <div class="info-value" id="nom-value">-</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Prénom</div>
-                                <div class="info-value" id="prenom-value">-</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Numéro de Sécurité Sociale</div>
-                                <div class="info-value" id="nss-value">-</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Numéro de Contrat</div>
-                                <div class="info-value" id="contrat-value">-</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Date de Naissance</div>
-                                <div class="info-value" id="naissance-value">-</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Numéro Adhérent</div>
-                                <div class="info-value" id="adherent-value">-</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Numéro AMC</div>
-                                <div class="info-value" id="amc-value">-</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">Période de Validité</div>
-                                <div class="info-value" id="validite-value">-</div>
-                            </div>
-                        </div>
+            <div id="confidenceBadge" class="confidence-badge"></div>
 
-                        <div class="beneficiaries-section">
-                            <h3>Bénéficiaires</h3>
-                            <div id="beneficiaires-list"></div>
-                        </div>
-
-                        <div class="prestations-section">
-                            <h3>Prestations</h3>
-                            <div class="prestation-grid" id="prestations-grid"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tab-content" id="raw-tab">
-                    <div class="result-placeholder">
-                        <i class="fas fa-align-left"></i>
-                        <p>Aucun texte brut à afficher</p>
-                    </div>
-                    <pre id="raw-text" style="display: none;"></pre>
-                </div>
+            <div class="accordion" id="resultsAccordion">
+                <!-- Les résultats seront insérés ici dynamiquement -->
             </div>
-        </div>
 
-        <div class="history-section">
-            <h2 class="section-title">Historique des Documents</h2>
-            <div class="history-list" id="history-list">
-                <div class="document-card">
-                    <div class="document-header">
-                        <h4>Document Example</h4>
-                        <span>12/05/2023</span>
-                    </div>
-                    <div class="document-body">
-                        <p>Aucun historique pour le moment. Les documents traités apparaîtront ici.</p>
-                    </div>
-                </div>
+            <div class="json-section">
+                <h3>Données JSON complètes</h3>
+                <pre id="jsonOutput"></pre>
             </div>
-        </div>
+        </section>
 
         <footer>
-            <p>OCR Processor &copy; 2023 - Traitement de documents mutuelle</p>
+            <p>Application de traitement de PDF Mutuelle &copy; 2023</p>
         </footer>
     </div>
 
-    <div class="toast" id="toast"></div>
-
     <script>
-        // Éléments DOM
-        const themeToggle = document.getElementById('theme-toggle');
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const browseBtn = document.getElementById('browse-btn');
-        const loading = document.getElementById('loading');
-        const resultPlaceholder = document.getElementById('result-placeholder');
-        const extractedResults = document.getElementById('extracted-results');
-        const rawText = document.getElementById('raw-text');
-        const tabs = document.querySelectorAll('.tab');
-        const tabContents = document.querySelectorAll('.tab-content');
-        const toast = document.getElementById('toast');
+        let accessToken = null;  // Stockera le JWT
 
-        // Basculer entre les modes clair/sombre
-        themeToggle.addEventListener('change', () => {
-            document.body.classList.toggle('dark-mode');
-        });
+        const loginBtn = document.getElementById('loginBtn');
+        const loginError = document.getElementById('loginError');
 
-        // Gérer les onglets
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                const tabId = tab.getAttribute('data-tab');
+        loginBtn.addEventListener('click', function () {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
 
-                tabs.forEach(t => t.classList.remove('active'));
-                tabContents.forEach(tc => tc.classList.remove('active'));
-
-                tab.classList.add('active');
-                document.getElementById(`${tabId}-tab`).classList.add('active');
-            });
-        });
-
-        // Gérer le glisser-déposer
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
-        });
-
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
-
-        ['dragenter', 'dragover'].forEach(eventName => {
-            dropZone.addEventListener(eventName, highlight, false);
-        });
-
-        ['dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, unhighlight, false);
-        });
-
-        function highlight() {
-            dropZone.style.borderColor = '#4361ee';
-            dropZone.style.backgroundColor = 'rgba(67, 97, 238, 0.1)';
-        }
-
-        function unhighlight() {
-            dropZone.style.borderColor = '';
-            dropZone.style.backgroundColor = '';
-        }
-
-        dropZone.addEventListener('drop', handleDrop, false);
-
-        function handleDrop(e) {
-            const dt = e.dataTransfer;
-            const files = dt.files;
-            handleFiles(files);
-        }
-
-        browseBtn.addEventListener('click', () => {
-            fileInput.click();
-        });
-
-        fileInput.addEventListener('change', () => {
-            handleFiles(fileInput.files);
-        });
-
-        // Fonction pour gérer les fichiers uploadés
-        function handleFiles(files) {
-            if (files.length === 0) return;
-
-            const file = files[0];
-            const validTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/tiff', 'image/bmp'];
-
-            if (!validTypes.includes(file.type)) {
-                showToast('Format de fichier non supporté', 'error');
-                return;
-            }
-
-            // Simuler le traitement OCR (à remplacer par un appel API réel)
-            processFile(file);
-        }
-
-        // Fonction pour simuler le traitement OCR
-        function processFile(file) {
-            loading.style.display = 'block';
-            resultPlaceholder.style.display = 'none';
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            fetch('https://eb3a3951dd44.ngrok-free.app/api/process', {
+            fetch('http://192.168.24.94/api/login', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
             })
-                .then(response => response.json())
+                .then(res => res.json())
                 .then(data => {
-                    loading.style.display = 'none';
-
-                    if (data.error) {
-                        showToast('Erreur: ' + data.error, 'error');
-                        return;
+                    if (data.access_token) {
+                        accessToken = data.access_token;
+                        loginError.style.display = 'none';
+                        alert('Connexion réussie ! Vous pouvez maintenant traiter le PDF.');
+                    } else if (data.error) {
+                        loginError.textContent = data.error;
+                        loginError.style.display = 'block';
                     }
-
-                    displayResults(data);
-                    showToast('Document traité avec succès', 'success');
                 })
-                .catch(error => {
-                    loading.style.display = 'none';
-                    console.error('Error:', error);
-                    showToast('Erreur de connexion au serveur', 'error');
+                .catch(err => {
+                    loginError.textContent = 'Erreur lors de la connexion.';
+                    loginError.style.display = 'block';
+                    console.error(err);
                 });
-        }
+        });
+        document.addEventListener('DOMContentLoaded', function () {
+            const pdfFileInput = document.getElementById('pdfFile');
+            const fileNameDisplay = document.getElementById('fileName');
+            const processBtn = document.getElementById('processBtn');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsAccordion = document.getElementById('resultsAccordion');
+            const jsonOutput = document.getElementById('jsonOutput');
+            const errorMessage = document.getElementById('errorMessage');
+            const confidenceBadge = document.getElementById('confidenceBadge');
 
-        // Afficher les résultats
-        function displayResults(data) {
-            console.log("Données reçues:", data); // Pour debug
+            // Gestion de la sélection de fichier
+            pdfFileInput.addEventListener('change', function () {
+                if (this.files.length > 0) {
+                    fileNameDisplay.textContent = this.files[0].name;
+                    processBtn.disabled = false;
+                    errorMessage.style.display = 'none';
+                } else {
+                    fileNameDisplay.textContent = 'Aucun fichier sélectionné';
+                    processBtn.disabled = true;
+                }
+            });
 
-            // Afficher les informations extraites
-            document.getElementById('mutuelle-value').textContent = data.mutuelle || '-';
-            document.getElementById('nom-value').textContent = data.nom || '-';
-            document.getElementById('prenom-value').textContent = data.prenom || '-';
-            document.getElementById('nss-value').textContent = data.numero_securite_sociale || '-';
-            document.getElementById('contrat-value').textContent = data.numero_contrat || '-';
-            document.getElementById('naissance-value').textContent = data.date_naissance || '-';
-            document.getElementById('adherent-value').textContent = data.numero_adherent || '-';
-            document.getElementById('amc-value').textContent = data.numero_amc || '-';
+            // Traitement du PDF
+            processBtn.addEventListener('click', function () {
+                if (pdfFileInput.files.length === 0) {
+                    showError('Veuillez sélectionner un fichier PDF');
+                    return;
+                }
 
-            // Gérer les dates de validité
-            if (data.date_debut_validite && data.date_fin_validite) {
-                document.getElementById('validite-value').textContent = `${data.date_debut_validite} - ${data.date_fin_validite}`;
-            } else {
-                document.getElementById('validite-value').textContent = '-';
+                const file = pdfFileInput.files[0];
+
+                // Afficher l'indicateur de chargement
+                loadingIndicator.style.display = 'block';
+                processBtn.disabled = true;
+                errorMessage.style.display = 'none';
+
+                // Préparer les données pour l'API
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // Appeler l'API
+                fetch('http://192.168.24.94/api/process', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${accessToken}`  // <- ajout du token
+                    },
+                    body: formData
+                })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error(`Erreur HTTP: ${response.status}`);
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        // Cacher l'indicateur de chargement
+                        loadingIndicator.style.display = 'none';
+                        processBtn.disabled = false;
+
+                        // Vérifier si l'API a retourné une erreur
+                        if (data.error) {
+                            throw new Error(data.error);
+                        }
+
+                        // Afficher les résultats
+                        displayResults(data);
+                    })
+                    .catch(error => {
+                        // Cacher l'indicateur de chargement
+                        loadingIndicator.style.display = 'none';
+                        processBtn.disabled = false;
+
+                        // Afficher l'erreur
+                        if (error.message.includes("CUDA out of memory")) {
+                            showError("Un autre traitement est en cours, veuillez réessayer plus tard.");
+                        } else {
+                            showError(`Erreur lors du traitement: ${error.message}`);
+                        }
+                        console.error('Erreur:', error);
+                    });
+            });
+
+            // Fonction pour afficher les erreurs
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
             }
 
-            // Afficher les bénéficiaires AVEC leurs prestations
-            const beneficiairesList = document.getElementById('beneficiaires-list');
-            beneficiairesList.innerHTML = '';
+            // Fonction pour afficher les résultats
+            function displayResults(data) {
+                // Afficher la section des résultats
+                resultsSection.style.display = 'block';
 
-            // Vérifier si data.beneficiaires existe et est un tableau
-            if (data.beneficiaires && Array.isArray(data.beneficiaires)) {
-                data.beneficiaires.forEach(benef => {
-                    const benefItem = document.createElement('div');
-                    benefItem.className = 'beneficiary-item';
+                // Afficher le badge de confiance
+                const confidence = data.confidence || 0;
+                const confidencePercentage = Math.round(confidence * 100);
 
-                    // Informations du bénéficiaire
-                    let benefHTML = `
-                <div class="info-grid">
-                    <div class="info-item">
-                        <div class="info-label">Nom</div>
-                        <div class="info-value">${benef.nom || '-'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Prénom</div>
-                        <div class="info-value">${benef.prenom || '-'}</div>
-                    </div>
-                    <div class="info-item">
-                        <div class="info-label">Date de naissance</div>
-                        <div class="info-value">${benef.date_naissance || '-'}</div>
-                    </div>
-                </div>
-            `;
+                let confidenceClass = 'confidence-low';
+                if (confidence >= 0.7) {
+                    confidenceClass = 'confidence-high';
+                } else if (confidence >= 0.5) {
+                    confidenceClass = 'confidence-medium';
+                }
 
-                    // Ajouter les prestations si elles existent
-                    if (benef.prestations && Array.isArray(benef.prestations) && benef.prestations.length > 0) {
-                        benefHTML += `
-                    <div class="prestations-container">
-                        <h4>Prestations:</h4>
-                        <div class="prestation-grid">
-                `;
+                confidenceBadge.className = `confidence-badge ${confidenceClass}`;
+                confidenceBadge.textContent = `Confiance: ${confidencePercentage}%`;
 
-                        benef.prestations.forEach(prestation => {
-                            benefHTML += `
-                        <div class="prestation-card">
-                            <div class="prestation-title">${prestation.code || 'Prestation'}</div>
-                            <div class="prestation-value">${prestation.valeur || '-'}</div>
-                            <div class="info-label">${prestation.label || ''}</div>
-                            <div class="info-label">${prestation.description || ''}</div>
+                // Afficher les informations principales
+                let accordionHTML = `
+                    <div class="accordion-item">
+                        <div class="accordion-header" onclick="toggleAccordion(this)">
+                            <span>Informations principales</span>
+                            <span>+</span>
                         </div>
-                    `;
-                        });
-
-                        benefHTML += `
+                        <div class="accordion-content">
+                            <div class="beneficiary-info">
+                                <p><strong>Nom complet:</strong> ${data.nom_complet || 'Non spécifié'}</p>
+                                <p><strong>Numéro de sécurité sociale:</strong> ${data.numero_securite_sociale || 'Non spécifié'}</p>
+                                <p><strong>Date de naissance:</strong> ${data.date_naissance || 'Non spécifié'}</p>
+                                <p><strong>Numéro d'adhérent:</strong> ${data.numero_adherent || 'Non spécifié'}</p>
+                                <p><strong>Numéro AMC:</strong> ${data.numero_amc || 'Non spécifié'}</p>
+                                <p><strong>Période de validité:</strong> ${data.date_debut_validite || 'Non spécifié'} - ${data.date_fin_validite || 'Non spécifié'}</p>
+                                <p><strong>Méthode d'extraction:</strong> ${data.extraction_method || 'Non spécifié'}</p>
+                            </div>
                         </div>
                     </div>
                 `;
-                    }
 
-                    benefItem.innerHTML = benefHTML;
-                    beneficiairesList.appendChild(benefItem);
-                });
-            } else {
-                beneficiairesList.innerHTML = '<p>Aucun bénéficiaire trouvé</p>';
+                // Afficher les bénéficiaires
+                if (data.beneficiaires && data.beneficiaires.length > 0) {
+                    data.beneficiaires.forEach((beneficiary, index) => {
+                        let prestationsHTML = '';
+
+                        if (beneficiary.prestations && beneficiary.prestations.length > 0) {
+                            beneficiary.prestations.forEach(prestation => {
+                                let extraDescriptionsHTML = '';
+                                // Afficher extra_descriptions seulement si elles existent et ne sont pas null
+                                if (prestation.extra_descriptions && prestation.extra_descriptions.length > 0) {
+                                    extraDescriptionsHTML = `
+                                        <div class="extra-descriptions">
+                                            ${prestation.extra_descriptions.map(desc =>
+                                        `<div class="extra-description">${desc}</div>`
+                                    ).join('')}
+                                        </div>
+                                    `;
+                                }
+
+                                let noteHTML = '';
+                                // Afficher note et note_description seulement si elles ne sont pas null
+                                if (prestation.note !== null && prestation.note !== undefined) {
+                                    noteHTML = `
+                                        <div class="note-badge">Note: ${prestation.note}</div>
+                                    `;
+
+                                    // Afficher note_description seulement si elle n'est pas null
+                                    if (prestation.note_description !== null && prestation.note_description !== undefined) {
+                                        noteHTML += `
+                                            <div class="note-description">${prestation.note_description}</div>
+                                        `;
+                                    }
+                                }
+
+                                prestationsHTML += `
+                                    <div class="prestation-item">
+                                        <div class="prestation-code">${prestation.code || 'N/A'}</div>
+                                        <div class="prestation-label">${prestation.description || 'Non spécifié'}</div>
+                                        <div class="prestation-details">
+                                            <div class="prestation-detail">
+                                                <strong>Valeur:</strong> ${prestation.valeur || 'Non spécifié'}
+                                            </div>
+                                            <div class="prestation-detail">
+                                                <strong>Label:</strong> ${prestation.label || 'Non spécifié'}
+                                            </div>
+                                        </div>
+                                        ${extraDescriptionsHTML}
+                                        ${noteHTML}
+                                    </div>
+                                `;
+                            });
+                        }
+
+                        accordionHTML += `
+                            <div class="accordion-item">
+                                <div class="accordion-header" onclick="toggleAccordion(this)">
+                                    <span>Bénéficiaire: ${beneficiary.nom_complet || 'Non spécifié'}</span>
+                                    <span>+</span>
+                                </div>
+                                <div class="accordion-content">
+                                    <div class="beneficiary-info">
+                                        <p><strong>Nom complet:</strong> ${beneficiary.nom_complet || 'Non spécifié'}</p>
+                                        <p><strong>Date de naissance:</strong> ${beneficiary.date_naissance || 'Non spécifié'}</p>
+                                    </div>
+                                    <h4>Prestations</h4>
+                                    ${prestationsHTML}
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                resultsAccordion.innerHTML = accordionHTML;
+
+                // Afficher le JSON complet
+                jsonOutput.textContent = JSON.stringify(data, null, 2);
+
+                // Faire défiler jusqu'aux résultats
+                resultsSection.scrollIntoView({ behavior: 'smooth' });
             }
+        });
 
-            // Afficher le texte brut
-            document.getElementById('raw-text').textContent = data.raw_text_preview || 'Aucun texte extrait';
+        // Fonction pour gérer l'accordéon
+        function toggleAccordion(header) {
+            const content = header.nextElementSibling;
+            const isActive = content.classList.contains('active');
 
-            // Afficher les résultats
-            resultPlaceholder.style.display = 'none';
-            extractedResults.style.display = 'block';
-            rawText.style.display = 'block';
-        }
+            // Fermer tous les autres éléments d'accordéon
+            document.querySelectorAll('.accordion-content').forEach(item => {
+                item.classList.remove('active');
+            });
 
-        // Fonction pour afficher les notifications
-        function showToast(message, type = 'default') {
-            toast.textContent = message;
-            toast.className = `toast ${type} show`;
+            document.querySelectorAll('.accordion-header span:last-child').forEach(item => {
+                item.textContent = '+';
+            });
 
-            setTimeout(() => {
-                toast.className = toast.className.replace('show', '');
-            }, 3000);
+            // Ouvrir/fermer l'élément actuel
+            if (!isActive) {
+                content.classList.add('active');
+                header.querySelector('span:last-child').textContent = '-';
+            }
         }
     </script>
 </body>
