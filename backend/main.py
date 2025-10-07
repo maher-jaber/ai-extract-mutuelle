@@ -24,7 +24,7 @@ class GeneralizedOCRProcessor:
         self.ner_pipeline = None
         self.mutuelle_patterns = self._initialize_mutuelle_patterns() 
         self.debug = debug
-        self.easyocr_reader = easyocr.Reader(['fr', 'en'], gpu=False)
+        self.easyocr_reader = easyocr.Reader(['fr', 'en'], gpu=True)
         self.notes_map = {
             "1": "Prise en charge à la demande (adresse indiquée au verso)",
             "2": "Selon les accords locaux",
@@ -149,11 +149,37 @@ class GeneralizedOCRProcessor:
         }
 
     def detect_mutuelle(self, text: str) -> Optional[str]:
-        """Détection automatique de la mutuelle"""
-        for mutuelle_name, patterns in self.mutuelle_patterns.items():
-            for pattern in patterns:
-                if re.search(pattern, text, re.IGNORECASE):
-                    return mutuelle_name
+        """Détection automatique de la mutuelle basée sur les codes AMC"""
+        try:
+            with open('mutuelles.json', 'r', encoding='utf-8') as f:
+                mutuelles_data = json.load(f)
+        except FileNotFoundError:
+            print("Fichier mutuelles.json non trouvé")
+            return None
+        except json.JSONDecodeError:
+            print("Erreur de lecture du fichier JSON")
+            return None
+        
+        # Extraire tous les nombres du texte et supprimer les zéros en tête
+    
+        numbers_in_text = re.findall(r'\d+', text)
+        
+        # Normaliser chaque nombre (supprimer les zéros en tête)
+        normalized_text_numbers = [str(int(num)) for num in numbers_in_text]
+        
+        # Rechercher le code AMC dans le texte
+        for mutuelle in mutuelles_data:
+            code = mutuelle.get('code', '')
+            label = mutuelle.get('label', '')
+            
+            if code:
+                # Normaliser le code (supprimer les zéros en tête)
+                normalized_code = str(int(code))
+                
+                # Vérifier si le code normalisé est dans les nombres normalisés du texte
+                if normalized_code in normalized_text_numbers:
+                    return label
+        
         return None
 
     def run_paddleocr(self, img_path: str) -> str:
@@ -187,49 +213,75 @@ class GeneralizedOCRProcessor:
     def run_tesseract(self, img: np.ndarray) -> str:
         """OCR avec Tesseract"""
         custom_config = r"--oem 3 --psm 6"
+        
         text = pytesseract.image_to_string(img, lang="fra+eng", config=custom_config)
 
         return text
 
     def ocr_from_image(self, image_path: str) -> str:
-        """OCR hybride PaddleOCR + Tesseract"""
-        processed = self.preprocess_image(image_path)
-        if processed is None:
+        """
+        OCR hybride sur image unique avec Paddle + Tesseract + EasyOCR.
+        Gère le préprocessing, le mode debug et combine les résultats comme ocr_from_pdf.
+        """
+        # Lecture de l'image
+        img = cv2.imread(image_path)
+        if img is None:
+            logger.error(f"Impossible de lire l'image : {image_path}")
             return ""
 
-        # Sauvegarde temporaire
-        temp_path = "temp_preprocessed.png"
+        # Prétraitement
+        processed = self.preprocess_image(img)
+        if processed is None:
+            logger.warning(f"Prétraitement échoué pour : {image_path}")
+            return ""
+
+        # Sauvegarde temporaire pour Paddle/EasyOCR (ces libs attendent un fichier)
+        temp_path = "temp_single_image.png"
         cv2.imwrite(temp_path, processed)
 
-        # Mode debug: sauvegarder l'image pour inspection
+        # Mode debug : sauvegarde l'image prétraitée
         if self.debug:
-            debug_path = "debug_final_preprocessed.png"
+            debug_path = "debug_single_preprocessed.png"
             cv2.imwrite(debug_path, processed)
-            logger.info(f"Debug image saved: {debug_path}")
+            logger.info(f"Image debug sauvegardée : {debug_path}")
 
+        # OCR Paddle
         text_paddle = self.run_paddleocr(temp_path)
+
+        # OCR Tesseract (directement sur l'image en mémoire)
         text_tesseract = self.run_tesseract(processed)
 
-        # Mode debug: sauvegarder les résultats textuels
+        # OCR EasyOCR (sur fichier temp)
+        text_easyocr = self.run_easyocr(temp_path)
+
+        # Combinaison
+        combined = "\n".join([text_paddle, text_tesseract, text_easyocr])
+
+        # Mode debug : sauvegarde des textes séparés et combinés
         if self.debug:
             with open("debug_paddle_results.txt", "w", encoding="utf-8") as f:
                 f.write(text_paddle)
             with open("debug_tesseract_results.txt", "w", encoding="utf-8") as f:
                 f.write(text_tesseract)
-            logger.info("Debug text files saved")
-
-        if os.path.exists(temp_path) and not self.debug:  # Ne pas supprimer en mode debug
-            os.remove(temp_path)
-
-        combined = text_paddle + "\n" + text_tesseract
-        logger.info(f"OCR Fusion: Paddle={len(text_paddle)} chars, Tesseract={len(text_tesseract)} chars")
-        
-        # Mode debug: sauvegarder le résultat combiné
-        if self.debug:
+            with open("debug_easyocr_results.txt", "w", encoding="utf-8") as f:
+                f.write(text_easyocr)
             with open("debug_combined_results.txt", "w", encoding="utf-8") as f:
                 f.write(combined)
-        
+            logger.info("Fichiers debug OCR sauvegardés")
+
+        # Suppression du fichier temporaire si pas en mode debug
+
+
+        # (Optionnel) Extraction spécifique si tu veux la même logique que dans PDF
+        json_result = self.extract_prestations_notes(temp_path, combined)
+
+        logger.info(
+            f"OCR Image terminé : Paddle={len(text_paddle)} chars, "
+            f"Tesseract={len(text_tesseract)} chars, EasyOCR={len(text_easyocr)} chars"
+        )
+
         return combined.strip()
+
     
     def run_easyocr(self, img):
         """OCR avec EasyOCR"""
@@ -332,7 +384,6 @@ class GeneralizedOCRProcessor:
             "mutuelle": None,
             "numero_contrat": None,
             "date_naissance": None,
-            "adresse": None,
             "numero_adherent": None,
             "numero_amc": None,
             "date_debut_validite": None,
@@ -348,8 +399,7 @@ class GeneralizedOCRProcessor:
         # Extraction des bénéficiaires
         data["beneficiaires"] = self.extract_beneficiaires(original_text)
         
-        # Détection automatique de la mutuelle
-        data["mutuelle"] = self.detect_mutuelle(original_text)
+
         
         # Si on a des bénéficiaires, utiliser le premier comme assuré principal
         if data["beneficiaires"]:
@@ -429,6 +479,9 @@ class GeneralizedOCRProcessor:
             for match in matches:
                 data["numero_amc"] = match.group(1).strip()
                 break
+        
+        # Détection automatique de la mutuelle
+        data["mutuelle"] = self.detect_mutuelle(data["numero_amc"])
         
         # Extraction numéro adhérent
         for pattern in adherent_patterns:
@@ -570,6 +623,9 @@ class GeneralizedOCRProcessor:
 
     def extract_beneficiaires(self, text: str) -> list:
         beneficiaires = []
+        
+
+                
         # --- NOUVEAU: Détection format alternatif ---
         alt_format_match = re.search(
             r"([A-Z]{2,}\s+[A-Z]{2,}(?:\s+[A-Z]{2,})*)\s*\n\s*([A-Z][a-z]+ [A-Z][a-z]+)\s+([A-Z]+)(?:\s+([\d/%PEC!?]+))+\s+(\d{2}/\d{2}/\d{4})",
@@ -580,12 +636,13 @@ class GeneralizedOCRProcessor:
             nom_complet = alt_format_match.group(2)
             date_naissance = alt_format_match.group(5).replace(".", "/").replace("-", "/")
             
-            beneficiaire = {
-                "nom_complet": nom_complet,
-                "date_naissance": date_naissance
-            }
-            
-            beneficiaires.append(beneficiaire)
+            if "ATTESTATION" not in nom_complet.upper():
+                beneficiaire = {
+                    "nom_complet": nom_complet,
+                    "date_naissance": date_naissance
+                }
+                
+                beneficiaires.append(beneficiaire)
             return beneficiaires
         # Regex améliorée pour éviter les artefacts comme "SC"
         pattern = r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ\s]{3,})(?:\s+[0-9\/%PEC@() ]+)?\s*(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
@@ -605,6 +662,9 @@ class GeneralizedOCRProcessor:
             # Vérifier que le nom a au moins 2 parties et ne contient pas que des acronymes
             name_parts = full_name.split()
             if len(name_parts) >= 2 and not all(len(part) <= 3 for part in name_parts):
+                if "ATTESTATION" in full_name.upper():
+                    continue
+                
                 beneficiaire = {
                     "nom_complet": full_name,
                     "date_naissance": date_naissance
@@ -613,6 +673,41 @@ class GeneralizedOCRProcessor:
                 # Éviter les doublons
                 if not any(b["nom_complet"] == beneficiaire["nom_complet"] for b in beneficiaires):
                     beneficiaires.append(beneficiaire)
+
+        if not beneficiaires :
+            base_codes = set(self.codification["codes"].keys())
+
+            # Normaliser le texte
+            text = re.sub(r'\s+', ' ', text)
+            text = text.replace('\n', ' ')
+
+            # Étape 1 : Supprimer tous les codes techniques connus (ex: PHAR, AUXM, etc.)
+            # On ajoute aussi une règle pour les mots tout en majuscules de longueur ≤ 5 (souvent codes non listés)
+            cleaned_text = []
+            for token in text.split():
+                if token.upper() in base_codes:
+                    continue
+                if re.fullmatch(r"[A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ]{2,5}", token):
+                    continue
+                cleaned_text.append(token)
+            cleaned_text = " ".join(cleaned_text)
+
+            # Étape 2 : Extraire les noms + dates de naissance
+            # Nom ou prénom peut être en majuscules ou minuscules, nom composé possible
+            # Ex: BONNET Johnny 22/03/1988
+            name_date_pattern = r'([A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ][A-Za-zéèêëàâäîïôöùûüç\'\-]+(?:\s+[A-ZÉÈÊËÀÂÄÎÏÔÖÙÛÜÇ][A-Za-zéèêëàâäîïôöùûüç\'\-]+)+)\s+(\d{2}[\/\-\.]\d{2}[\/\-\.]\d{4})'
+
+            for match in re.finditer(name_date_pattern, cleaned_text):
+                nom_complet = match.group(1).strip()
+                date_naissance = match.group(2).replace("-", "/").replace(".", "/")
+
+                # On évite de prendre des codes déguisés en noms
+                if all(word.upper() not in base_codes for word in nom_complet.split()):
+                    if not any(b["nom_complet"] == nom_complet for b in beneficiaires):
+                        beneficiaires.append({
+                            "nom_complet": nom_complet,
+                            "date_naissance": date_naissance
+                        })
 
         return beneficiaires
 
@@ -1016,7 +1111,14 @@ class GeneralizedOCRProcessor:
 
             except Exception as e:
                 logger.warning(f"Impossible de lire {json_file}: {e}")
-
+                
+        if not final_data.get("beneficiaires"):
+            final_data["confidence"] *= 0.6
+        
+        if final_data.get("beneficiaires"):
+            if not any(b.get("prestations") for b in final_data["beneficiaires"]):
+                final_data["confidence"] *= 0.7
+            
         return final_data
 
     
