@@ -623,8 +623,8 @@ class GeneralizedOCRProcessor:
 
     def extract_beneficiaires(self, text: str) -> list:
         beneficiaires = []
-        
 
+            
                 
         # --- NOUVEAU: Détection format alternatif ---
         alt_format_match = re.search(
